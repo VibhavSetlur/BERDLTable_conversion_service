@@ -10,8 +10,8 @@ service-language:
 module-version:
     0.0.1
 
-service-type:
-    dynamic
+service-config:
+  dynamic: true
 
 owners:
     [vibhavsetlur]
