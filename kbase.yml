@@ -11,7 +11,7 @@ module-version:
     0.0.1
 
 service-config:
-  dynamic: true
+  dynamic-service: true
 
 owners:
     [vibhavsetlur]
