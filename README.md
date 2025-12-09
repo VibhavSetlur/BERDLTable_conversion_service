@@ -24,3 +24,17 @@ To use this code in another SDK module, call `kb-sdk install BERDLTable_conversi
 # Help
 
 You may find the answers to your questions in our [FAQ](https://kbase.github.io/kb_sdk_docs/references/questions_and_answers.html) or [Troubleshooting Guide](https://kbase.github.io/kb_sdk_docs/references/troubleshooting.html).
+
+
+# Testing the service
+
+Copy run_container.txt to test_local/run_container.sh and make it executable.
+
+To run the container, use the following command:
+
+```bash
+$ docker build -t test/berdltable_conversion_service:latest .
+$ ./test_local/run_container.sh
+```
+
+Then open ui/test_viewer.html in your browser.
