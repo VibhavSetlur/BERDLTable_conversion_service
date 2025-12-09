@@ -1,0 +1,10 @@
+#!/bin/bash
+script_dir="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+cd $script_dir/..
+
+# Run the Docker container as a daemon on port 10001
+docker run \
+  -v $script_dir/workdir:/kb/module/work \
+  -d -p 10001:5000 \
+  --dns 8.8.8.8 \
+  test/berdltable_conversion_service:latest
