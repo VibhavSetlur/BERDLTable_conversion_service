@@ -16,19 +16,27 @@ module BERDLTable_conversion_service {
 
     /* Input parameters for get_table_data method */
     typedef structure {
-        string berdl_table_id;  /* BERDLTables object reference (e.g., "1/2/3") */
-        string table_name;      /* Name of table to retrieve (e.g., "Genes") */
+        string berdl_table_id;  /* BERDLTables object reference */
+        string table_name;      /* Name of table to retrieve */
+        int offset;             /* Skip N rows */
+        int limit;              /* Return max N rows */
+        string sort_column;     /* Column to sort by */
+        string sort_order;      /* "asc" or "desc" */
+        string search_value;    /* Global search term */
+        mapping<string, string> query_filters; /* Column-specific filters (AND logic) */
     } GetTableDataParams;
 
-    /* Output containing table data as 2D array with performance metrics */
+    /* Output containing table data with performance metrics */
     typedef structure {
         list<string> headers;           /* Column names */
         list<list<string>> data;        /* Row data as 2D string array */
-        int row_count;                  /* Total number of rows returned */
-        string table_name;              /* Name of table returned */
-        float response_time_ms;         /* Total server-side processing time */
-        float db_query_ms;              /* SQLite SELECT query time */
-        float conversion_ms;            /* Python -> JSON conversion time */
+        int row_count;                  /* Number of rows returned in this page */
+        int total_count;                /* Total rows in table (before filtering) */
+        int filtered_count;             /* Total rows matching search (before pagination) */
+        string table_name;              /* Name of table */
+        float response_time_ms;         /* Total server-side time */
+        float db_query_ms;              /* SQLite SELECT time */
+        float conversion_ms;            /* Python → JSON conversion time */
     } TableDataResult;
 
     /* Input parameters for list_tables method */

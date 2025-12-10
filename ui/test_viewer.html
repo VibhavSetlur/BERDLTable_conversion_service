@@ -661,38 +661,140 @@
                 return;
             }
 
+            // If we have a DataTable, destroy it but keep the table structure
+            if (dataTable) {
+                dataTable.destroy();
+                $('#data-table').empty(); // Clear headers and body
+                dataTable = null;
+            }
+
             showLoading(true);
             hideError();
 
-            const startTime = performance.now();
-
             try {
-                let result;
+                // 1. Fetch headers first (using limit=1 to minimize data transfer)
+                // We need headers to initialize DataTables columns
+                const initResult = await callService('get_table_data', {
+                    berdl_table_id: CONFIG.berdlTableId,
+                    table_name: tableName,
+                    limit: 1
+                });
 
-                // Check cache first for efficiency
-                if (TABLE_CACHE[tableName]) {
-                    result = TABLE_CACHE[tableName];
-                    console.log(`Cache hit for ${tableName}`);
-                } else if (CONFIG.serviceUrl) {
-                    // Call dynamic service
-                    result = await callService('get_table_data', {
-                        berdl_table_id: CONFIG.berdlTableId,
-                        table_name: tableName
-                    });
-                } else {
-                    throw new Error('No service URL configured');
+                const headers = initResult.headers;
+                const columns = headers.map((h, index) => ({
+                    title: h,
+                    data: index // Data is a list of lists, so use index
+                }));
+
+                // 2. Initialize DataTables with Server-side processing
+                $('#data-table').show();
+
+                // Add footer for column filters if not exists
+                if ($('#data-table tfoot').length === 0) {
+                    $('#data-table').append('<tfoot><tr></tr></tfoot>');
                 }
+                const tfootRow = $('#data-table tfoot tr');
+                tfootRow.empty(); // Clear previous footer
+                headers.forEach(h => {
+                    tfootRow.append(`<th><input type="text" placeholder="Search ${h}" style="width: 100%; font-size: 0.8rem; padding: 4px; box-sizing: border-box; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 4px;" /></th>`);
+                });
 
-                // Don't overwrite server-side timing with client-side timing
-                // Server already provides response_time_ms, db_query_ms, conversion_ms
+                dataTable = $('#data-table').DataTable({
+                    processing: true,
+                    serverSide: true,
+                    columns: columns,
+                    pageLength: 25,
+                    lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
 
-                // Cache for future use
-                TABLE_CACHE[tableName] = result;
+                    // AJAX Source: Map DataTables params to Service API
+                    ajax: async function (data, callback, settings) {
+                        try {
+                            // Map parameters
+                            const params = {
+                                berdl_table_id: CONFIG.berdlTableId,
+                                table_name: tableName,
+                                offset: data.start,
+                                limit: data.length,
+                                search_value: data.search.value,
+                                query_filters: {}
+                            };
 
-                displayData(result);
+                            // Map column filters
+                            if (data.columns) {
+                                data.columns.forEach((col, index) => {
+                                    if (col.search && col.search.value) {
+                                        // Use column title as key (assuming columns are in order)
+                                        const colName = headers[index];
+                                        params.query_filters[colName] = col.search.value;
+                                    }
+                                });
+                            }
+
+                            // Add sorting
+                            if (data.order && data.order.length > 0) {
+                                const columnIndex = data.order[0].column;
+                                // Get valid column name from headers
+                                if (headers[columnIndex]) {
+                                    params.sort_column = headers[columnIndex];
+                                    params.sort_order = data.order[0].dir;
+                                }
+                            }
+
+                            const startTime = performance.now();
+
+                            // Call Service
+                            const result = await callService('get_table_data', params);
+
+                            // Update timing stats
+                            // Server-side timing (from result properties)
+                            updateStats(result);
+
+                            // Return data to DataTables
+                            // Note: result.data is list<list<string>>, matching columns.data definition
+                            callback({
+                                draw: data.draw,
+                                recordsTotal: result.total_count,
+                                recordsFiltered: result.filtered_count,
+                                data: result.data
+                            });
+
+                        } catch (error) {
+                            console.error("DataTables AJAX error:", error);
+                            showError("Failed to load table page: " + error.message);
+                            callback({
+                                draw: data.draw,
+                                recordsTotal: 0,
+                                recordsFiltered: 0,
+                                data: [],
+                                error: error.message
+                            });
+                        }
+                    },
+
+                    // Initialize column search inputs
+                    initComplete: function () {
+                        // Apply the search
+                        this.api().columns().every(function () {
+                            var that = this;
+                            $('input', this.footer()).on('keyup change clear', function () {
+                                if (that.search() !== this.value) {
+                                    that.search(this.value).draw();
+                                }
+                            });
+                        });
+                    },
+
+                    // UI Customization
+                    dom: 'Bfrtip',
+                    buttons: ['copy', 'csv', 'excel'],
+                    language: {
+                        processing: '<div class="spinner" style="width: 30px; height: 30px; border-width: 3px;"></div>'
+                    }
+                });
 
             } catch (error) {
-                showError(`Failed to load data: ${error.message}`);
+                showError(`Failed to initialize table: ${error.message}`);
+                $('#data-table').hide();
             } finally {
                 showLoading(false);
             }
@@ -833,60 +935,27 @@
         // ========================================
 
         /**
-         * Display data in DataTable
-         */
-        function displayData(result) {
-            // Update stats
-            updateStats(result);
-
-            // Show table, hide empty state
-            document.getElementById('empty-state').style.display = 'none';
-            document.getElementById('data-table').style.display = 'table';
-            document.getElementById('stats-panel').style.display = 'flex';
-
-            // Destroy existing DataTable if present
-            if (dataTable) {
-                dataTable.destroy();
-                $('#data-table thead').empty();
-                $('#data-table tbody').empty();
-            }
-
-            // Build header
-            const thead = $('#data-table thead');
-            const headerRow = $('<tr>');
-            result.headers.forEach(header => {
-                headerRow.append($('<th>').text(header));
-            });
-            thead.append(headerRow);
-
-            // Initialize DataTable with data
-            dataTable = $('#data-table').DataTable({
-                data: result.data,
-                columns: result.headers.map(header => ({ title: header })),
-                pageLength: 25,
-                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
-                order: [[0, 'asc']],
-                scrollX: true,
-                dom: 'lfrtipB',
-                buttons: ['copy', 'csv'],
-                language: {
-                    search: "Search:",
-                    lengthMenu: "Show _MENU_ entries",
-                    info: "Showing _START_ to _END_ of _TOTAL_ entries"
-                },
-                // Performance optimization for large datasets
-                deferRender: true,
-                scroller: false
-            });
-        }
-
-        /**
          * Update statistics panel with timing breakdown
          */
         function updateStats(result) {
-            // Row and column counts
-            document.getElementById('stat-rows').textContent =
-                result.row_count.toLocaleString();
+            // Show panel
+            document.getElementById('stats-panel').style.display = 'flex';
+            document.getElementById('empty-state').style.display = 'none';
+
+            // Row count display (Smart handling for V2.0 pagination/filtering)
+            const total = result.total_count || result.row_count;
+            const filtered = result.filtered_count;
+            const rowsEl = document.getElementById('stat-rows');
+
+            if (filtered !== undefined && filtered < total) {
+                // Showing filtered results
+                rowsEl.textContent = `${filtered.toLocaleString()} / ${total.toLocaleString()}`;
+                rowsEl.style.fontSize = '1rem'; // Smaller font for longer text
+            } else {
+                // Showing all results
+                rowsEl.textContent = total.toLocaleString();
+                rowsEl.style.fontSize = '1.4rem';
+            }
 
             document.getElementById('stat-columns').textContent =
                 result.headers.length;
@@ -909,8 +978,10 @@
             timeEl.textContent = `${timeMs.toFixed(1)} ms`;
             timeEl.className = 'stat-value ' + (timeMs < 500 ? 'stat-good' : 'stat-warning');
 
-            // Throughput calculation
-            const throughput = result.row_count / (timeMs / 1000);
+            // Throughput calculation (rows per second)
+            // Use page row count for throughput calculation as that's what was transferred
+            const pageRows = result.row_count;
+            const throughput = pageRows / (timeMs / 1000);
             document.getElementById('stat-throughput').textContent =
                 `${Math.round(throughput).toLocaleString()} rows/s`;
 
@@ -921,13 +992,13 @@
             // Log timing breakdown to console
             const overhead = timeMs - (queryMs + convertMs);
             console.log('\n' + '-'.repeat(50));
-            console.log(`Table: ${result.table_name} (${result.row_count.toLocaleString()} rows)`);
+            console.log(`Table: ${result.table_name} (Page: ${pageRows} rows)`);
+            console.log(`Total: ${filtered !== undefined ? filtered : total} / ${total} available`);
             console.log('-'.repeat(50));
             console.log(`SQLite Query:     ${queryMs.toFixed(1)} ms`);
             console.log(`JSON Convert:     ${convertMs.toFixed(1)} ms`);
-            console.log(`Server Overhead:  ${overhead.toFixed(1)} ms  (logging, function calls)`);
+            console.log(`Server Overhead:  ${overhead.toFixed(1)} ms`);
             console.log(`Total Server:     ${timeMs.toFixed(1)} ms`);
-            console.log(`\nMath: ${queryMs.toFixed(1)} + ${convertMs.toFixed(1)} + ${overhead.toFixed(1)} = ${timeMs.toFixed(1)} ms`);
             console.log('-'.repeat(50) + '\n');
         }
 

@@ -161,7 +161,7 @@ class BERDLTableConversionServiceTest(unittest.TestCase):
         table_name = "Genes"
         
         start = time.time()
-        headers, data, db_query_ms, conversion_ms = db_utils.get_table_data(db_path, table_name)
+        headers, data, total_count, filtered_count, db_query_ms, conversion_ms = db_utils.get_table_data(db_path, table_name)
         elapsed_ms = (time.time() - start) * 1000
         
         self.assertIsInstance(headers, list)
@@ -228,6 +228,8 @@ class BERDLTableConversionServiceTest(unittest.TestCase):
         self.assertIn("row_count", table_result)
         self.assertIn("table_name", table_result)
         self.assertIn("response_time_ms", table_result)
+        self.assertIn("total_count", table_result)
+        self.assertIn("filtered_count", table_result)
         
         # Verify content
         self.assertEqual(table_result["table_name"], "Genes")
@@ -277,6 +279,125 @@ class BERDLTableConversionServiceTest(unittest.TestCase):
         
         self.assertIn("required", str(context.exception))
         print(f"\n  Correctly raised error: {context.exception}")
+
+    # =========================================================================
+    # V2.0 Feature Tests (Query & Pagination)
+    # =========================================================================
+
+    def test_get_table_data_pagination(self):
+        """Test limit and offset parameters."""
+        # 1. Get first 10 rows
+        params1 = {
+            "table_name": "Genes",
+            "limit": 10,
+            "offset": 0
+        }
+        result1 = self.serviceImpl.get_table_data(self.ctx, params1)[0]
+        self.assertEqual(len(result1["data"]), 10)
+        self.assertEqual(result1["row_count"], 10)
+        self.assertEqual(result1["total_count"], 3356)
+        
+        # 2. Get next 10 rows
+        params2 = {
+            "table_name": "Genes",
+            "limit": 10,
+            "offset": 10
+        }
+        result2 = self.serviceImpl.get_table_data(self.ctx, params2)[0]
+        self.assertEqual(len(result2["data"]), 10)
+        
+        # Verify rows are different (using ID column, usually second column index 1)
+        id1 = result1["data"][0][1]
+        id2 = result2["data"][0][1]
+        self.assertNotEqual(id1, id2)
+        print(f"\n  Pagination Verified: Row 1 ID={id1}, Row 11 ID={id2}")
+
+    def test_get_table_data_sorting(self):
+        """Test sorting by column."""
+        # Sort by "ID" column in Genes table
+        params = {
+            "table_name": "Genes",
+            "limit": 5,
+            "sort_column": "ID",
+            "sort_order": "asc"
+        }
+        result = self.serviceImpl.get_table_data(self.ctx, params)[0]
+        data = result["data"]
+        
+        # Verify sorted order
+        col_idx = result["headers"].index("ID")
+        values = [row[col_idx] for row in data]
+        sorted_values = sorted(values)
+        self.assertEqual(values, sorted_values)
+        
+        # Reverse sort
+        params["sort_order"] = "desc"
+        result_desc = self.serviceImpl.get_table_data(self.ctx, params)[0]
+        values_desc = [row[col_idx] for row in result_desc["data"]]
+        
+        # Verify desc results are sorted in descending order
+        self.assertEqual(values_desc, sorted(values_desc, reverse=True))
+        
+        # Verify we got different data (top vs bottom of table)
+        self.assertNotEqual(values, values_desc)
+        
+        print(f"\n  Sorting Verified: ASC={values[:3]}..., DESC={values_desc[:3]}...")
+
+    def test_get_table_data_search(self):
+        """Test global search filtering."""
+        # Search for specific gene name or ID
+        search_term = "ACIAD0001"
+        params = {
+            "table_name": "Genes",
+            "search_value": search_term,
+            "limit": 100
+        }
+        result = self.serviceImpl.get_table_data(self.ctx, params)[0]
+        
+        self.assertGreater(result["row_count"], 0)
+        self.assertLess(result["row_count"], result["total_count"])
+        self.assertEqual(result["filtered_count"], result["row_count"])
+        
+        # Verify search term matches at least one column in each row
+        match_found = False
+        for row in result["data"]:
+            row_match = False
+            for cell in row:
+                if search_term in str(cell):
+                    row_match = True
+                    break
+            if not row_match:
+                self.fail(f"Row returned that does not contain '{search_term}': {row}")
+        
+        print(f"\n  Search Verified: Found {result['filtered_count']} rows matching '{search_term}'")
+
+    def test_get_table_data_column_filter(self):
+        """Test column-specific filtering."""
+        # Search for Genes where primary_function contains "DNA" AND ID contains "00"
+        query_filters = {
+            "Primary_function": "DNA",
+            "ID": "00"
+        }
+        params = {
+            "table_name": "Genes",
+            "query_filters": query_filters,
+            "limit": 100
+        }
+        result = self.serviceImpl.get_table_data(self.ctx, params)[0]
+        
+        # Verify filtered count
+        self.assertGreater(result["row_count"], 0)
+        self.assertLess(result["row_count"], result["total_count"])
+        
+        # Verify each row matches both conditions
+        pf_idx = result["headers"].index("Primary_function")
+        id_idx = result["headers"].index("ID")
+        
+        for row in result["data"]:
+            self.assertIn("dna", row[pf_idx].lower(), f"Primary_function should contain 'DNA' (case-insensitive): {row[pf_idx]}")
+            self.assertIn("00", row[id_idx], f"ID should contain '00': {row[id_idx]}")
+            
+        print(f"\n  Column Filter Verified: Found {len(result['data'])} rows matching {query_filters}")
 
     # =========================================================================
     # Performance Stress Tests

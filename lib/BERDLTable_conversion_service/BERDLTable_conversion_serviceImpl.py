@@ -125,6 +125,14 @@ class BERDLTable_conversion_service:
         berdl_table_id = params.get("berdl_table_id", "")
         table_name = params.get("table_name", "")
         
+        # V2.0: Extract pagination, sorting, and filter parameters
+        limit = params.get("limit")
+        offset = params.get("offset")
+        sort_column = params.get("sort_column")
+        sort_order = params.get("sort_order")
+        search_value = params.get("search_value")
+        query_filters = params.get("query_filters")
+        
         # Validate table name
         if not table_name:
             raise ValueError("table_name is required")
@@ -144,8 +152,15 @@ class BERDLTable_conversion_service:
             raise ValueError(f"Table '{table_name}' not found. Available tables: {available}")
         
         # Extract table data with timing breakdown
-        headers, data, db_query_ms, conversion_ms = db_utils.get_table_data(
-            self.db_path, table_name
+        headers, data, total_count, filtered_count, db_query_ms, conversion_ms = db_utils.get_table_data(
+            self.db_path, 
+            table_name,
+            limit=limit,
+            offset=offset,
+            sort_column=sort_column,
+            sort_order=sort_order,
+            search_value=search_value,
+            query_filters=query_filters
         )
         
         # Calculate total response time
@@ -156,6 +171,8 @@ class BERDLTable_conversion_service:
             "headers": headers,
             "data": data,
             "row_count": len(data),
+            "total_count": total_count,
+            "filtered_count": filtered_count,
             "table_name": table_name,
             "response_time_ms": response_time_ms,
             "db_query_ms": db_query_ms,

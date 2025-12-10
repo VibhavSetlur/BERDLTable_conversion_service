@@ -79,26 +79,27 @@ def get_table_data(
     db_path: str, 
     table_name: str,
     limit: Optional[int] = None,
-    offset: Optional[int] = None
-) -> Tuple[List[str], List[List[str]], float, float]:
+    offset: Optional[int] = None,
+    sort_column: Optional[str] = None,
+    sort_order: Optional[str] = None,
+    search_value: Optional[str] = None,
+    query_filters: Optional[dict] = None
+) -> Tuple[List[str], List[List[str]], int, int, float, float]:
     """
-    Extract all data from a table as a 2D string array.
-    
-    Converts all values to strings for consistent JSON serialization.
-    NULL values are converted to empty strings.
+    Extract table data with pagination, sorting, and filtering.
     
     Args:
         db_path: Path to the SQLite database file
         table_name: Name of the table to query
-        limit: (V2.0 placeholder) Maximum number of rows to return
-        offset: (V2.0 placeholder) Number of rows to skip
+        limit: Maximum number of rows to return
+        offset: Number of rows to skip
+        sort_column: Column name to sort by
+        sort_order: Sort direction ('asc' or 'desc')
+        search_value: Global search term to filter all columns
+        query_filters: Dictionary of column-specific search terms (col: value)
         
     Returns:
-        Tuple of (headers, data, db_query_ms, conversion_ms) where:
-            - headers: List of column names
-            - data: List of rows, each row is a list of string values
-            - db_query_ms: Time spent querying SQLite
-            - conversion_ms: Time spent converting to strings
+        Tuple of (headers, data, total_count, filtered_count, db_query_ms, conversion_ms)
     """
     import time
     
@@ -111,21 +112,67 @@ def get_table_data(
         
         if not headers:
             logger.warning(f"Table {table_name} has no columns or doesn't exist")
-            return [], [], 0.0, 0.0
+            return [], [], 0, 0, 0.0, 0.0
         
-        # Build query - V1.0 returns all data
-        # TODO V2.0: Add pagination with LIMIT/OFFSET
-        query = f"SELECT * FROM {table_name}"
+        # 1. Get total count (before filtering)
+        cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+        total_count = cursor.fetchone()[0]
         
-        # V2.0 placeholder: pagination support
-        # if limit is not None:
-        #     query += f" LIMIT {limit}"
-        #     if offset is not None:
-        #         query += f" OFFSET {offset}"
+        # 2. Build where clause
+        conditions = []
+        params = []
+        
+        # 2a. Global Search (OR logic across all columns)
+        if search_value:
+            search_conditions = []
+            term = f"%{search_value}%"
+            for col in headers:
+                search_conditions.append(f"{col} LIKE ?")
+                params.append(term)
+            
+            if search_conditions:
+                conditions.append(f"({' OR '.join(search_conditions)})")
+        
+        # 2b. Column Filters (AND logic)
+        if query_filters:
+            for col, val in query_filters.items():
+                if col in headers and val:
+                    # Basic LIKE search for now
+                    conditions.append(f"{col} LIKE ?")
+                    params.append(f"%{val}%")
+        
+        where_clause = ""
+        if conditions:
+            where_clause = " WHERE " + " AND ".join(conditions)
+        
+        # 3. Get filtered count (if filters exist)
+        if where_clause:
+            cursor.execute(f"SELECT COUNT(*) FROM {table_name} {where_clause}", params)
+            filtered_count = cursor.fetchone()[0]
+        else:
+            filtered_count = total_count
+        
+        # 4. Build final query
+        query = f"SELECT * FROM {table_name}{where_clause}"
+        
+        # Add sorting
+        if sort_column and sort_column in headers:
+            direction = "DESC" if sort_order and sort_order.lower() == "desc" else "ASC"
+            query += f" ORDER BY {sort_column} {direction}"
+        elif not sort_column:
+             # Default sort to ensure consistent pagination
+             query += f" ORDER BY {headers[0]} ASC"
+            
+        # Add pagination
+        if limit is not None:
+             query += f" LIMIT {int(limit)}"
+        
+        if offset is not None:
+             query += f" OFFSET {int(offset)}"
         
         # TIME: SQLite SELECT query
         query_start = time.time()
-        cursor.execute(query)
+        cursor.execute(query, params)
         rows = cursor.fetchall()
         db_query_ms = (time.time() - query_start) * 1000
         
@@ -142,11 +189,7 @@ def get_table_data(
             data.append(string_row)
         conversion_ms = (time.time() - conversion_start) * 1000
         
-        logger.info(
-            f"Extracted {len(data)} rows from {table_name} "
-            f"(query: {db_query_ms:.2f}ms, convert: {conversion_ms:.2f}ms)"
-        )
-        return headers, data, db_query_ms, conversion_ms
+        return headers, data, total_count, filtered_count, db_query_ms, conversion_ms
         
     except sqlite3.Error as e:
         logger.error(f"Error extracting data from {table_name}: {e}")
