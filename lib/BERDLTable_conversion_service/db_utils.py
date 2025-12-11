@@ -48,6 +48,38 @@ def list_tables(db_path: str) -> List[str]:
         raise
 
 
+def ensure_indices(db_path: str, table_name: str) -> None:
+    """
+    Ensure indices exist for all columns in the table to optimize filtering.
+    
+    Args:
+        db_path: Path to the SQLite database file
+        table_name: Name of the table
+    """
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Get columns
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        # Create index for each column
+        for col in columns:
+            index_name = f"idx_{table_name}_{col}"
+            # Sanitize column name for SQL safety (basic)
+            safe_col = col.replace('"', '""')
+            cursor.execute(f'CREATE INDEX IF NOT EXISTS "{index_name}" ON "{table_name}" ("{safe_col}")')
+            
+        conn.commit()
+        conn.close()
+        logger.info(f"Ensured indices for table {table_name}")
+        
+    except sqlite3.Error as e:
+        logger.warning(f"Error creating indices for {table_name}: {e}")
+        # Don't raise, just log warning as this is an optimization step
+
+
 def get_table_columns(db_path: str, table_name: str) -> List[str]:
     """
     Get column names for a specific table.

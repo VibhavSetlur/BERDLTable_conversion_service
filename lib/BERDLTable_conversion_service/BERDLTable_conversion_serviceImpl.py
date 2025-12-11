@@ -20,7 +20,11 @@ import os
 import time
 
 from BERDLTable_conversion_service import db_utils
+from BERDLTable_conversion_service import redis_cache
 from installed_clients.KBaseReportClient import KBaseReport
+import shutil
+import hashlib
+import json
 #END_HEADER
 
 
@@ -136,24 +140,100 @@ class BERDLTable_conversion_service:
         # Validate table name
         if not table_name:
             raise ValueError("table_name is required")
+            
+        # V2.6: Redis Caching Layer
+        # Check cache first (Level 2 Cache)
+        # Generate deterministic cache key
+        user_id = ctx.get('user_id', 'unknown_user')
         
+        # Create a dict of relevant query params for hashing
+        query_params = {
+            "berdl_table_id": berdl_table_id,
+            "table_name": table_name,
+            "limit": limit,
+            "offset": offset,
+            "sort_column": sort_column,
+            "sort_order": sort_order,
+            "search_value": search_value,
+            "query_filters": query_filters
+        }
+        
+        # Serialize and hash
+        param_hash = hashlib.sha256(json.dumps(query_params, sort_keys=True).encode()).hexdigest()
+        cache_key = f"{user_id}:{berdl_table_id}:{table_name}:{param_hash}"
+        
+        cached_result = redis_cache.get_cached_value("query_results", cache_key)
+        if cached_result:
+             self.logger.info(f"Redis Cache HIT for {cache_key}")
+             # Ensure response_time_ms reflects that this was a cache hit (fast)
+             # But we might want to preserve the 'cached' metrics?
+             # For now, just return what was cached, updating response_time_ms to now
+             cached_result['response_time_ms'] = (time.time() - start_time) * 1000
+             cached_result['source'] = 'REDIS' # Optional: Add metadata
+             return [cached_result]
+        
+        self.logger.info(f"Redis Cache MISS for {cache_key}")
+
         # V1.0: Use bundled database, ignore berdl_table_id
         # TODO V1.5: Download BERDLTables object from workspace and cache locally
         #            - Call workspace API to get BERDLTables object
         #            - Extract data handle references  
         #            - Download SQLite file to /data/cache/{object_id}/
         #            - Use cached path for subsequent calls
-        if berdl_table_id:
-            self.logger.info(f"V1.0: Ignoring berdl_table_id '{berdl_table_id}', using bundled data")
+        # V2.5: Multi-User Caching & Persistence
+        user_id = ctx.get('user_id', 'unknown_user')
         
+        # 1. Define cache directory for this user and object
+        # Sanitize IDs to be safe for filenames
+        safe_user = str(user_id).replace('/', '_')
+        safe_obj = str(berdl_table_id).replace('/', '_') if berdl_table_id else "bundled"
+        
+        cache_dir = os.path.join(self.scratch, 'berdl_cache', safe_user, safe_obj)
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        # 2. Resolve DB path in cache
+        # Logic: If BERDLTable ID is provided, we should use the cached DB for that object.
+        # Since V1.0/V1.5 is simulate/mock, we copy the bundled/local DB to this cache location 
+        # to simulate a download.
+        
+        cached_db_path = os.path.join(cache_dir, f"{table_name}.db")
+        
+        if os.path.exists(cached_db_path):
+             self.logger.info(f"Using cached database: {cached_db_path}")
+             actual_db_path = cached_db_path
+        else:
+             self.logger.info(f"Database not in cache. Simulating download to: {cached_db_path}")
+             # Mock Download: Copy from bundled location
+             # Ensure source exists
+             if os.path.exists(self.db_path):
+                  # We copy the WHOLE db file. Note: In real/future versions, the DB might contains ALL tables
+                  # or we might have one DB file per table.
+                  # For this mock, we assume self.db_path contains the table.
+                  # To avoid concurrency issues on copy, we might want a lock, but for now simple copy.
+                  shutil.copy2(self.db_path, cached_db_path)
+                  actual_db_path = cached_db_path
+             else:
+                  self.logger.error(f"Source bundled database not found at {self.db_path}")
+                  # Fallback to whatever self.db_path was (likely fail later)
+                  actual_db_path = self.db_path
+
         # Check if table exists
-        if not db_utils.validate_table_exists(self.db_path, table_name):
-            available = ", ".join(self.available_tables)
-            raise ValueError(f"Table '{table_name}' not found. Available tables: {available}")
+        if not db_utils.validate_table_exists(actual_db_path, table_name):
+            # Try listing tables from the actual path we are using
+            tables = db_utils.list_tables(actual_db_path)
+            available = ", ".join(tables)
+            raise ValueError(f"Table '{table_name}' not found in {actual_db_path}. Available tables: {available}")
         
+        # V3.0 Optimization: Ensure indices exist for this table
+        # This is fast if indices already exist (SQLite IF NOT EXISTS)
+        try:
+             db_utils.ensure_indices(actual_db_path, table_name)
+        except Exception as e:
+             self.logger.warning(f"Failed to ensure indices: {e}")
+
         # Extract table data with timing breakdown
         headers, data, total_count, filtered_count, db_query_ms, conversion_ms = db_utils.get_table_data(
-            self.db_path, 
+            actual_db_path, 
             table_name,
             limit=limit,
             offset=offset,
@@ -178,11 +258,15 @@ class BERDLTable_conversion_service:
             "db_query_ms": db_query_ms,
             "conversion_ms": conversion_ms
         }
-        
         self.logger.info(
             f"Returned {len(data)} rows from '{table_name}' - "
             f"query: {db_query_ms:.2f}ms, convert: {conversion_ms:.2f}ms, total: {response_time_ms:.2f}ms"
         )
+        
+        # Cache the result in Redis
+        # Use default TTL (1 hour)
+        redis_cache.set_cached_value("query_results", cache_key, result)
+        
         #END get_table_data
 
         # Type validation

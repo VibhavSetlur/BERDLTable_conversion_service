@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BERDLTable Service - Live Demo</title>
+
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css">
+
+    <style>
+        :root {
+            --bg-primary: #0a0e27;
+            --bg-secondary: #151932;
+            --bg-tertiary: #1e2746;
+            --accent-primary: #00d9ff;
+            --accent-secondary: #7c3aed;
+            --accent-success: #10b981;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+            padding: 20px 32px;
+            border-bottom: 2px solid var(--accent-primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .container {
+            max-width: 1600px;
+            /* Wider for data tables */
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Metrics Dashboard */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .metric-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+            margin: 4px 0;
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Visual Flow Diagram */
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .flow-box {
+            padding: 10px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            text-align: center;
+            min-width: 120px;
+        }
+
+        .flow-box.active {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 10px rgba(0, 217, 255, 0.2);
+        }
+
+        .flow-arrow {
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+        }
+
+        /* Controls */
+        .controls {
+            background: var(--bg-secondary);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 16px;
+            display: flex;
+            gap: 16px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        select,
+        input {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 8px 12px;
+            border-radius: 4px;
+            width: 100%;
+        }
+
+        button {
+            background: var(--accent-primary);
+            color: var(--bg-primary);
+            font-weight: 600;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: var(--accent-secondary);
+        }
+
+        /* DataTable Customization */
+        .dataTables_wrapper {
+            background: var(--bg-secondary);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        table.dataTable {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin-top: 10px !important;
+        }
+
+        table.dataTable thead th {
+            border-bottom: 2px solid var(--accent-primary) !important;
+            color: var(--text-primary);
+            padding: 12px 10px !important;
+        }
+
+        table.dataTable tbody td {
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 10px !important;
+        }
+
+        /* Column Filter Inputs */
+        .filter-input {
+            width: 100%;
+            padding: 4px 8px;
+            font-size: 0.8rem;
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-redis {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+
+        .status-sqlite {
+            background: rgba(124, 58, 237, 0.2);
+            color: #8b5cf6;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>BERDLTable Service <span style="font-weight:400; font-size:1rem; opacity:0.7;">| Dynamic Data Browser</span>
+        </h1>
+        <div id="connection-status" style="color: var(--accent-success); font-size: 0.9rem;">● Service Online</div>
+    </div>
+
+    <div class="container">
+        <!-- Visual Flow -->
+        <div class="flow-diagram">
+            <div class="flow-box">Client Request</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box" id="flow-redis">
+                <strong>Redis Cache</strong><br>
+                <span style="font-size:0.75rem; color:#10b981;">&lt;5ms (Hit)</span>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box" id="flow-miss" style="border-style:dashed; opacity:0.5;">Miss</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box" id="flow-sqlite">
+                <strong>SQLite DB</strong><br>
+                <span style="font-size:0.75rem; color:#8b5cf6;">20-50ms</span>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box">Return JSON</div>
+        </div>
+
+        <!-- Metrics -->
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Total Queries</div>
+                <div class="metric-value" id="total-queries">0</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Cache Hits</div>
+                <div class="metric-value" id="cache-hits" style="color: #10b981;">0</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Last Response</div>
+                <div class="metric-value" id="last-response">—</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Last Source</div>
+                <div class="metric-value" id="last-source">—</div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <div class="control-group">
+                <label>Select Table (from lims_mirror.db)</label>
+                <select id="table-select">
+                    <option value="">Loading tables...</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>User ID (Isolation Scope)</label>
+                <input type="text" id="user-id" value="demo_user">
+            </div>
+            <div class="control-group">
+                <label>&nbsp;</label>
+                <button id="btn-load">Load Table</button>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <table id="data-table" class="display" style="width:100%">
+            <thead></thead>
+            <tbody></tbody>
+            <tfoot></tfoot>
+        </table>
+    </div>
+
+    <!-- Libs -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+    <script>
+        // State
+        let table; // DataTable instance
+        let stats = { queries: 0, hits: 0 };
+
+        // 1. Initial Load: Fetch Tables
+        $(document).ready(function () {
+            fetchTables();
+
+            // Enter key support
+            $('#user-id').keypress(e => { if (e.which == 13) loadTable(); });
+            $('#btn-load').click(loadTable);
+        });
+
+        async function fetchTables() {
+            try {
+                // Determine tables from service
+                const res = await callService('list_tables', { berdl_table_id: 'demo' });
+                const tables = res.tables.sort();
+
+                const $sel = $('#table-select').empty();
+                $sel.append('<option value="">-- Select a Table --</option>');
+
+                if (tables.length === 0) {
+                    $sel.append('<option disabled>No tables found</option>');
+                } else {
+                    tables.forEach(t => {
+                        $sel.append(`<option value="${t}">${t}</option>`);
+                    });
+                }
+            } catch (err) {
+                console.error("List tables failed", err);
+                $('#connection-status').text("● Service Offline").css('color', '#ef4444');
+                $('#table-select').html('<option>Connection Failed</option>');
+            }
+        }
+
+        async function loadTable() {
+            const tableName = $('#table-select').val();
+            const userId = $('#user-id').val();
+
+            if (!tableName) return alert("Select a table first");
+
+            // Destroy existing table
+            if ($.fn.DataTable.isDataTable('#data-table')) {
+                $('#data-table').DataTable().destroy();
+                $('#data-table').empty(); // Clear DOM
+            }
+
+            // Fetch first page to get headers
+            try {
+                const initRes = await callService('get_table_data', {
+                    user_id: userId,
+                    berdl_table_id: 'demo',
+                    table_name: tableName,
+                    limit: 1, // Just to get headers
+                    offset: 0
+                });
+
+                const headers = initRes.headers;
+
+                // Build DOM structure for DataTable with filters in header
+                let thead = '<tr>';
+                let filterRow = '<tr class="filter-row">';
+
+                headers.forEach(h => {
+                    thead += `<th>${h}</th>`;
+                    filterRow += `<th><input type="text" placeholder="Filter..." class="filter-input" data-col="${h}" onclick="event.stopPropagation()"></th>`;
+                });
+                thead += '</tr>';
+                filterRow += '</tr>';
+
+                $('#data-table').html(`<thead>${thead}${filterRow}</thead><tbody></tbody>`);
+
+                // Initialize Server-side DataTable
+                table = $('#data-table').DataTable({
+                    processing: true,
+                    serverSide: true,
+                    searching: false, // Disable global search
+                    displayLength: 25,
+                    ordering: true,
+                    orderCellsTop: true, // Important: Sort on top row, ignore filter row
+                    ajax: async function (data, callback, settings) {
+                        const pageSize = data.length;
+                        const offset = data.start;
+
+                        // Sorting
+                        let sortCol = null;
+                        let sortDir = null;
+                        if (data.order && data.order.length > 0) {
+                            sortCol = headers[data.order[0].column];
+                            sortDir = data.order[0].dir;
+                        }
+
+                        // Column Filtering
+                        const queryFilters = {};
+                        $('.filter-input').each(function () {
+                            const val = $(this).val();
+                            if (val) queryFilters[$(this).data('col')] = val;
+                        });
+
+                        const startTime = performance.now();
+
+                        try {
+                            const result = await callService('get_table_data', {
+                                user_id: $('#user-id').val(),
+                                berdl_table_id: 'demo',
+                                table_name: tableName,
+                                limit: pageSize,
+                                offset: offset,
+                                sort_column: sortCol,
+                                sort_order: sortDir,
+                                query_filters: queryFilters
+                            });
+
+                            const elapsed = performance.now() - startTime;
+                            updateStats(result, elapsed);
+
+                            // Map array data to objects
+                            const pageData = result.data.map(row => {
+                                const obj = {};
+                                headers.forEach((h, i) => obj[h] = row[i] || '');
+                                return Object.values(obj);
+                            });
+
+                            callback({
+                                draw: data.draw,
+                                recordsTotal: result.total_count,
+                                recordsFiltered: result.filtered_count,
+                                data: pageData
+                            });
+
+                        } catch (e) {
+                            console.error("Data load error", e);
+                        }
+                    }
+                });
+
+                // Bind filter inputs with debounce
+                let debounceTimer;
+                $('.filter-input').on('keyup change', function () {
+                    clearTimeout(debounceTimer);
+                    debounceTimer = setTimeout(() => {
+                        table.ajax.reload();
+                    }, 300); // 300ms delay to avoid excessive requests
+                });
+
+            } catch (err) {
+                alert("Failed to load table: " + err);
+            }
+        }
+
+        async function callService(method, params) {
+            // Using standard JSON-RPC format for KBase services
+            const payload = {
+                version: "1.1",
+                method: "BERDLTable_conversion_service." + method,
+                params: [params],
+                id: String(Date.now())
+            };
+
+            const res = await $.ajax({
+                url: "http://localhost:5000",
+                method: "POST",
+                contentType: "application/json",
+                data: JSON.stringify(payload)
+            });
+
+            if (res.error) throw res.error;
+            return res.result[0];
+        }
+
+        function updateStats(result, clientMs) {
+            stats.queries++;
+            const source = result.source || 'SQLite';
+            if (source === 'REDIS') stats.hits++;
+
+            $('#total-queries').text(stats.queries);
+            $('#cache-hits').text(stats.hits);
+            $('#last-response').text(result.response_time_ms.toFixed(1) + 'ms');
+
+            const badgeClass = source === 'REDIS' ? 'status-redis' : 'status-sqlite';
+            const icon = source === 'REDIS' ? '⚡' : '💾';
+
+            $('#last-source').html(`<span class="status-badge ${badgeClass}">${icon} ${source}</span>`);
+
+            // Highlight flow boxes
+            $('.flow-box').removeClass('active');
+            if (source === 'REDIS') {
+                $('#flow-redis').addClass('active');
+            } else {
+                $('#flow-redis').addClass('active'); // Check
+                setTimeout(() => $('#flow-miss').addClass('active'), 200);
+                setTimeout(() => $('#flow-sqlite').addClass('active'), 400);
+            }
+        }
+    </script>
+</body>
+
+</html>

@@ -26,21 +26,30 @@
 - ✅ AND logic for multiple filters
 - ✅ Unit tests for all query features
 
+#### V2.5 - Multi-User Persistence (Completed)
+- ✅ Namespaced scratch directory design
+- ✅ Local verification of file persistence
+- ✅ Logic for reuse of downloaded databases
+
 ---
 
 ## Planned Features
 
-### V1.5 - BERDLTables Integration (High Priority)
-
-**Goal:** Connect to actual BERDLTable workspace objects instead of bundled data.
-
+### V2.6 - Redis Result Caching (High Priority)
+**Goal:** Cache query results to minimize SQLite file I/O and computing overhead.
 **Features:**
-- [ ] Download BERDLTable objects from KBase workspace
-- [ ] Extract data handle references from object metadata
-- [ ] Download SQLite files from Shock/Handle Service
-- [ ] Local caching of downloaded databases
-- [ ] Cache invalidation and cleanup
-- [ ] Support for multiple concurrent BERDLTable objects
+- [ ] Connect to Redis (local/Rancher)
+- [ ] Cache JSON results for `get_table_data` keys
+- [ ] Implement TTL (e.g., 1 hour)
+- [ ] Fallback to SQLite if Redis miss
+
+### V1.5 - BERDLTables Integration (High Priority)
+**Goal:** Connect to actual BERDLTable workspace objects.
+**Features:**
+- [ ] Download BERDLTable objects from workspace
+- [ ] Extract data handle references
+- [ ] Download SQLite files (if not effectively cached via Redis/Disk strategy)
+- [ ] Local filesystem caching (V2.5 logic) as fallback for Redis misses
 
 **Benefits:**
 - Users can browse their own data
