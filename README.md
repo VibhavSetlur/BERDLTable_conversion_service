@@ -55,11 +55,10 @@ Features:
 │ /scratch/caches │
 └────────┬────────┘
          │
-    MISS │ (Check 1-Day Age)
+    MISS │ (Check 1-Day Age (temp))
          ▼
 ┌─────────────────┐
 │ SQLite Query    │
-│ (V2.5 + V3.0)   │
 └────────┬────────┘
          │
          ▼
