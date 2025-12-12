@@ -72,14 +72,7 @@ Features:
 2.  **Indexing (V3.0)**: `CREATE INDEX` on all columns.
 3.  **Cleanup (V4.0)**: Automated deletion of caches older than 24 hours.
 
-## 🧪 Testing
 
-### 1. Docker Environment (Official)
-Run the full KBase SDK test suite (ensures Docker compatibility):
-```bash
-kb-sdk test
-```
-*Expected Result: "OK" (16 tests passed)*
 
 ### 2. Local Python Environment (Fast)
 Run tests directly on your host machine:
@@ -87,22 +80,7 @@ Run tests directly on your host machine:
 python3 test/BERDLTable_conversion_service_server_test.py
 ```
 
-## 📦 Installation / Dev Setup
-
-```bash
-# Clone repository
-git clone <repo-url>
-cd BERDLTable_conversion_service
-
-# Install dependencies
-pip install pytest coverage
-```
-
-## 📖 Documentation
-
-- **[walkthrough.md](.gemini/antigravity/brain/46c97fe7-5685-46ee-a909-2d4405a5a31a/walkthrough.md)**: Implementation walkthrough
-
-## 🎯 Quick API Example
+## Quick API Example
 
 ```python
 # Python client example
@@ -116,17 +94,3 @@ service.get_table_data({
     }
 })
 ```
-
-## 🏆 Version History
-
-| Version | Feature | Status |
-|---------|---------|--------|
-| V1.0 | Dynamic service, bundled data | ✅ Complete |
-| V2.0 | Pagination, sorting, search | ✅ Complete |
-| V2.5 | Filesystem caching | ✅ Complete |
-| V3.0 | Query optimization & indexing | ✅ Complete |
-| V4.0 | Local Disk Management (No Redis) | ✅ Complete |
-
-## 🤝 Contributing
-
-For questions or contributions, contact the BERDLTable development team.
