@@ -238,24 +238,25 @@
     <div class="header">
         <h1>BERDLTable Service <span style="font-weight:400; font-size:1rem; opacity:0.7;">| Dynamic Data Browser</span>
         </h1>
-        <div id="connection-status" style="color: var(--accent-success); font-size: 0.9rem;">● Service Online</div>
+        <div id="connection-status" style="color: var(--accent-success); font-size: 0.9rem;">
+            ● Service Online <span style="color:var(--text-secondary); margin-left:10px; font-size:0.8rem;">(Local Disk
+                Cache: 1 Day Retention)</span>
+        </div>
     </div>
 
     <div class="container">
-        <!-- Visual Flow -->
+        <!-- Pangenome Flow Diagram -->
         <div class="flow-diagram">
             <div class="flow-box">Client Request</div>
             <div class="flow-arrow">→</div>
-            <div class="flow-box" id="flow-redis">
-                <strong>Redis Cache</strong><br>
-                <span style="font-size:0.75rem; color:#10b981;">&lt;5ms (Hit)</span>
+            <div class="flow-box" id="flow-pangenome" style="border-color: var(--accent-secondary);">
+                <strong>Local Pangenome DB</strong><br>
+                <span style="font-size:0.75rem;">(Check/Download)</span>
             </div>
             <div class="flow-arrow">→</div>
-            <div class="flow-box" id="flow-miss" style="border-style:dashed; opacity:0.5;">Miss</div>
-            <div class="flow-arrow">→</div>
             <div class="flow-box" id="flow-sqlite">
-                <strong>SQLite DB</strong><br>
-                <span style="font-size:0.75rem; color:#8b5cf6;">20-50ms</span>
+                <strong>SQLite Query</strong><br>
+                <span style="font-size:0.75rem; color:#8b5cf6;">Indexing + Pagination</span>
             </div>
             <div class="flow-arrow">→</div>
             <div class="flow-box">Return JSON</div>
@@ -268,8 +269,8 @@
                 <div class="metric-value" id="total-queries">0</div>
             </div>
             <div class="metric-card">
-                <div class="metric-label">Cache Hits</div>
-                <div class="metric-value" id="cache-hits" style="color: #10b981;">0</div>
+                <div class="metric-label">Rows Scanned</div>
+                <div class="metric-value" id="rows-scanned">—</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Last Response</div>
@@ -284,9 +285,15 @@
         <!-- Controls -->
         <div class="controls">
             <div class="control-group">
-                <label>Select Table (from lims_mirror.db)</label>
-                <select id="table-select">
-                    <option value="">Loading tables...</option>
+                <label>1. Select Pangenome</label>
+                <select id="pangenome-select">
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>2. Select Table</label>
+                <select id="table-select" disabled>
+                    <option value="">Select Pangenome first</option>
                 </select>
             </div>
             <div class="control-group">
@@ -316,42 +323,75 @@
         let table; // DataTable instance
         let stats = { queries: 0, hits: 0 };
 
-        // 1. Initial Load: Fetch Tables
         $(document).ready(function () {
-            fetchTables();
+            fetchPangenomes();
 
-            // Enter key support
+            // Event Listeners
+            $('#pangenome-select').change(function () {
+                const pgId = $(this).val();
+                if (pgId) fetchTables(pgId);
+                else {
+                    $('#table-select').html('<option>Select Pangenome first</option>').prop('disabled', true);
+                }
+            });
+
             $('#user-id').keypress(e => { if (e.which == 13) loadTable(); });
             $('#btn-load').click(loadTable);
         });
 
-        async function fetchTables() {
+        async function fetchPangenomes() {
             try {
-                // Determine tables from service
-                const res = await callService('list_tables', { berdl_table_id: 'demo' });
+                const res = await callService('list_pangenomes', { berdl_table_id: 'demo' });
+                const $sel = $('#pangenome-select').empty();
+                $sel.append('<option value="">-- Select Pangenome --</option>');
+
+                res.pangenomes.forEach(pg => {
+                    const label = `${pg.pangenome_taxonomy} (${pg.pangenome_id})`;
+                    $sel.append(`<option value="${pg.pangenome_id}">${label}</option>`);
+                });
+            } catch (err) {
+                console.error("List pangenomes failed", err);
+                $('#connection-status').text("● Service Offline").css('color', '#ef4444');
+                $('#pangenome-select').html('<option>Connection Failed</option>');
+            }
+        }
+
+        async function fetchTables(pangenomeId) {
+            const $sel = $('#table-select').empty().prop('disabled', true);
+            $sel.append('<option>Loading tables...</option>');
+
+            try {
+                const res = await callService('list_tables', {
+                    berdl_table_id: 'demo',
+                    pangenome_id: pangenomeId
+                });
                 const tables = res.tables.sort();
 
-                const $sel = $('#table-select').empty();
+                $sel.empty().prop('disabled', false);
                 $sel.append('<option value="">-- Select a Table --</option>');
 
-                if (tables.length === 0) {
-                    $sel.append('<option disabled>No tables found</option>');
-                } else {
-                    tables.forEach(t => {
-                        $sel.append(`<option value="${t}">${t}</option>`);
-                    });
-                }
+                tables.forEach(t => {
+                    $sel.append(`<option value="${t}">${t}</option>`);
+                });
             } catch (err) {
-                console.error("List tables failed", err);
-                $('#connection-status').text("● Service Offline").css('color', '#ef4444');
-                $('#table-select').html('<option>Connection Failed</option>');
+                const msg = formatError(err);
+                if (msg.includes("Simulated Error")) {
+                    alert("⚠️ DEMO SIMULATION: The backend API for this mock pangenome is not connected in this demo environment.\n\nPlease select 'LIMS Default' to see real data.");
+                    $sel.html('<option>Not Available</option>');
+                } else {
+                    console.error("List tables failed", err);
+                    $sel.html('<option>Failed to load</option>');
+                    alert("Failed to load tables: " + msg);
+                }
             }
         }
 
         async function loadTable() {
             const tableName = $('#table-select').val();
+            const pangenomeId = $('#pangenome-select').val();
             const userId = $('#user-id').val();
 
+            if (!pangenomeId) return alert("Select a pangenome first");
             if (!tableName) return alert("Select a table first");
 
             // Destroy existing table
@@ -365,8 +405,9 @@
                 const initRes = await callService('get_table_data', {
                     user_id: userId,
                     berdl_table_id: 'demo',
+                    pangenome_id: pangenomeId,
                     table_name: tableName,
-                    limit: 1, // Just to get headers
+                    limit: 1,
                     offset: 0
                 });
 
@@ -418,6 +459,7 @@
                             const result = await callService('get_table_data', {
                                 user_id: $('#user-id').val(),
                                 berdl_table_id: 'demo',
+                                pangenome_id: pangenomeId, // Pass Selected Pangenome
                                 table_name: tableName,
                                 limit: pageSize,
                                 offset: offset,
@@ -455,13 +497,19 @@
                     clearTimeout(debounceTimer);
                     debounceTimer = setTimeout(() => {
                         table.ajax.reload();
-                    }, 300); // 300ms delay to avoid excessive requests
+                    }, 300);
                 });
 
             } catch (err) {
-                alert("Failed to load table: " + err);
+                const msg = formatError(err);
+                if (msg.includes("Simulated Error")) {
+                    alert("⚠️ DEMO SIMULATION: The backend API for this mock pangenome is not connected.");
+                } else {
+                    alert("Failed to load table: " + msg);
+                }
             }
         }
+
 
         async function callService(method, params) {
             // Using standard JSON-RPC format for KBase services
@@ -485,27 +533,43 @@
 
         function updateStats(result, clientMs) {
             stats.queries++;
-            const source = result.source || 'SQLite';
-            if (source === 'REDIS') stats.hits++;
 
             $('#total-queries').text(stats.queries);
-            $('#cache-hits').text(stats.hits);
+            $('#rows-scanned').text(result.total_count ? result.total_count.toLocaleString() : '0');
             $('#last-response').text(result.response_time_ms.toFixed(1) + 'ms');
 
-            const badgeClass = source === 'REDIS' ? 'status-redis' : 'status-sqlite';
-            const icon = source === 'REDIS' ? '⚡' : '💾';
+            const source = result.source || 'SQLite';
+            const badgeClass = 'status-sqlite';
+            const icon = '💾';
 
             $('#last-source').html(`<span class="status-badge ${badgeClass}">${icon} ${source}</span>`);
 
             // Highlight flow boxes
             $('.flow-box').removeClass('active');
-            if (source === 'REDIS') {
-                $('#flow-redis').addClass('active');
-            } else {
-                $('#flow-redis').addClass('active'); // Check
-                setTimeout(() => $('#flow-miss').addClass('active'), 200);
-                setTimeout(() => $('#flow-sqlite').addClass('active'), 400);
+
+            // Flow: Pangenome -> SQLite -> Return
+            $('#flow-pangenome').addClass('active');
+            setTimeout(() => $('#flow-sqlite').addClass('active'), 300);
+        }
+
+        function formatError(err) {
+            let msg = "Unknown Error";
+            if (typeof err === 'string') return err;
+
+            // jqXHR object
+            if (err.responseText) {
+                try {
+                    const json = JSON.parse(err.responseText);
+                    if (json.error) return json.error.message || json.error;
+                } catch (e) { }
+                return err.responseText;
             }
+
+            // Error object
+            if (err.message) return err.message;
+            if (err.statusText) return err.statusText;
+
+            try { return JSON.stringify(err); } catch (e) { return String(err); }
         }
     </script>
 </body>

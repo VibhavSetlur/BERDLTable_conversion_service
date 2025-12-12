@@ -17,6 +17,7 @@ module BERDLTable_conversion_service {
     /* Input parameters for get_table_data method */
     typedef structure {
         string berdl_table_id;  /* BERDLTables object reference */
+        string pangenome_id;    /* Specific pangenome ID within the object (optional - uses first found if empty) */
         string table_name;      /* Name of table to retrieve */
         int offset;             /* Skip N rows */
         int limit;              /* Return max N rows */
@@ -37,11 +38,32 @@ module BERDLTable_conversion_service {
         float response_time_ms;         /* Total server-side time */
         float db_query_ms;              /* SQLite SELECT time */
         float conversion_ms;            /* Python → JSON conversion time */
+        string source;                  /* Data source: "REDIS", "SQLite", "Cache" */
     } TableDataResult;
+
+    /* Input parameters for list_pangenomes method */
+    typedef structure {
+        string berdl_table_id;  /* BERDLTables object reference */
+    } ListPangenomesParams;
+
+    /* Information about a single pangenome in the BERDLTables set */
+    typedef structure {
+        string pangenome_id;
+        string pangenome_taxonomy;
+        list<string> user_genomes;
+        list<string> berdl_genomes;
+        string handle_ref;     /* Reference to the SQLite file handle */
+    } PangenomeMetadata;
+
+    /* Output containing available pangenomes */
+    typedef structure {
+        list<PangenomeMetadata> pangenomes;
+    } ListPangenomesResult;
 
     /* Input parameters for list_tables method */
     typedef structure {
         string berdl_table_id;  /* BERDLTables object reference */
+        string pangenome_id;    /* Specific pangenome ID (optional) */
     } ListTablesParams;
 
     /* Output containing available table names */
@@ -61,26 +83,31 @@ module BERDLTable_conversion_service {
        ======================================================================== */
 
     /*
-        Retrieves table data from a BERDLTables object as a 2D string array.
-        
-        V1.0: Returns data from bundled lims_mirror.db (ignores berdl_table_id).
-        V1.5: Will download and cache BERDLTables from workspace.
-        V2.0: Will add filtering and pagination parameters.
-        
-        @param params - GetTableDataParams with berdl_table_id and table_name
-        @return TableDataResult with headers, data, row_count, and timing info
+        Lists available pangenomes in a BERDLTables object.
+        Retrieves metadata from the workspace object.
     */
-    funcdef get_table_data(GetTableDataParams params) returns (TableDataResult result);
+    funcdef list_pangenomes(ListPangenomesParams params) returns (ListPangenomesResult result);
 
     /*
-        Lists available tables in a BERDLTables object.
+        Lists available tables in a specific pangenome (or the first found).
         
-        V1.0: Returns tables from bundled lims_mirror.db (ignores berdl_table_id).
-        
-        @param params - ListTablesParams with berdl_table_id
+        @param params - ListTablesParams with berdl_table_id and optional pangenome_id
         @return ListTablesResult with list of table names
     */
     funcdef list_tables(ListTablesParams params) returns (ListTablesResult result);
+
+    /*
+        Retrieves table data from a BERDLTables object as a 2D string array.
+        
+        V1.0: Returns data from bundled lims_mirror.db (ignores berdl_table_id).
+        V1.5: Downloads and caches BERDLTables from workspace using handle_ref.
+        V2.0: Supports filtering and pagination parameters.
+        V3.1: Supports pangenome_id selection.
+        
+        @param params - GetTableDataParams with IDs and filtering options
+        @return TableDataResult with headers, data, row_count, timing info, and source
+    */
+    funcdef get_table_data(GetTableDataParams params) returns (TableDataResult result);
 
     /*
         Legacy method for running as a standard KBase app with report output.

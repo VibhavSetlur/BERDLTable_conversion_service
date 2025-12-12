@@ -1,0 +1,57 @@
+2025-12-11 17:56:06 INFO: Using local database: /home/vibhav/Downloads/Work/ANL/Research/BERDLTable_conversion_service/data/lims_mirror.db
+2025-12-11 17:56:06 INFO: Found 12 tables in database: ['Conditions', 'DNA_constructs', 'Experiments', 'Genes', 'Measurement_types', 'Measurements', 'Primers', 'Samples', 'Strains', 'dgoA_alleles_new', 'dgoA_alleles_old', 'robotic_mt_samples']
+2025-12-11 17:56:06 INFO: Loaded 12 tables: ['Conditions', 'DNA_constructs', 'Experiments', 'Genes', 'Measurement_types', 'Measurements', 'Primers', 'Samples', 'Strains', 'dgoA_alleles_new', 'dgoA_alleles_old', 'robotic_mt_samples']
+2025-12-11 17:56:06 INFO: BERDLTable_conversion_service initialized successfully
+2025-12-11 17:56:06 INFO: Running database cleanup for /tmp/berdl_test/pangenome_dbs (Retention: 1 days)...
+2025-12-11 17:56:06 INFO: Cleanup complete. No old caches found.
+2025-12-11 17:57:17 INFO: list_pangenomes for demo
+2025-12-11 17:57:17 INFO: Starting list_tables
+2025-12-11 17:57:17 INFO: Params: {'berdl_table_id': 'demo', 'pangenome_id': 'pg_lims'}
+2025-12-11 17:57:17 INFO: V1.0: Ignoring berdl_table_id 'demo', using bundled data
+2025-12-11 17:57:17 INFO: Using cached DB for pg_lims
+2025-12-11 17:57:17 INFO: Found 12 tables in database: ['Conditions', 'DNA_constructs', 'Experiments', 'Genes', 'Measurement_types', 'Measurements', 'Primers', 'Samples', 'Strains', 'dgoA_alleles_new', 'dgoA_alleles_old', 'robotic_mt_samples']
+2025-12-11 17:57:17 INFO: Returning 12 tables
+2025-12-11 17:57:17 INFO: Starting get_table_data
+2025-12-11 17:57:17 INFO: Params: {'user_id': 'test_script', 'berdl_table_id': 'demo', 'pangenome_id': 'pg_lims', 'table_name': 'Genes', 'limit': 5, 'offset': 0}
+2025-12-11 17:57:17 INFO: Using cached DB for pg_lims
+2025-12-11 17:57:17 INFO: Found 12 tables in database: ['Conditions', 'DNA_constructs', 'Experiments', 'Genes', 'Measurement_types', 'Measurements', 'Primers', 'Samples', 'Strains', 'dgoA_alleles_new', 'dgoA_alleles_old', 'robotic_mt_samples']
+2025-12-11 17:57:17 INFO: Ensured indices for table Genes
+2025-12-11 17:57:17 INFO: Starting get_table_data
+2025-12-11 17:57:17 INFO: Params: {'user_id': 'test_script', 'berdl_table_id': 'demo', 'pangenome_id': 'pg_lims', 'table_name': 'Genes', 'limit': 5, 'query_filters': {'Gene Name': 'dgoA'}}
+2025-12-11 17:57:17 INFO: Using cached DB for pg_lims
+2025-12-11 17:57:17 INFO: Found 12 tables in database: ['Conditions', 'DNA_constructs', 'Experiments', 'Genes', 'Measurement_types', 'Measurements', 'Primers', 'Samples', 'Strains', 'dgoA_alleles_new', 'dgoA_alleles_old', 'robotic_mt_samples']
+2025-12-11 17:57:17 INFO: Ensured indices for table Genes
+2025-12-11 17:58:36 INFO: list_pangenomes for demo
+2025-12-11 17:58:39 INFO: Starting list_tables
+2025-12-11 17:58:39 INFO: Params: {'berdl_table_id': 'demo', 'pangenome_id': 'pg_lims'}
+2025-12-11 17:58:39 INFO: V1.0: Ignoring berdl_table_id 'demo', using bundled data
+2025-12-11 17:58:39 INFO: Using cached DB for pg_lims
+2025-12-11 17:58:39 INFO: Found 12 tables in database: ['Conditions', 'DNA_constructs', 'Experiments', 'Genes', 'Measurement_types', 'Measurements', 'Primers', 'Samples', 'Strains', 'dgoA_alleles_new', 'dgoA_alleles_old', 'robotic_mt_samples']
+2025-12-11 17:58:39 INFO: Returning 12 tables
+2025-12-11 17:58:43 INFO: Starting get_table_data
+2025-12-11 17:58:43 INFO: Params: {'user_id': 'demo_user', 'berdl_table_id': 'demo', 'pangenome_id': 'pg_lims', 'table_name': 'Genes', 'limit': 1, 'offset': 0}
+2025-12-11 17:58:43 INFO: Using cached DB for pg_lims
+2025-12-11 17:58:43 INFO: Found 12 tables in database: ['Conditions', 'DNA_constructs', 'Experiments', 'Genes', 'Measurement_types', 'Measurements', 'Primers', 'Samples', 'Strains', 'dgoA_alleles_new', 'dgoA_alleles_old', 'robotic_mt_samples']
+2025-12-11 17:58:43 INFO: Ensured indices for table Genes
+2025-12-11 17:58:43 INFO: Starting get_table_data
+2025-12-11 17:58:43 INFO: Params: {'user_id': 'demo_user', 'berdl_table_id': 'demo', 'pangenome_id': 'pg_lims', 'table_name': 'Genes', 'limit': 25, 'offset': 0, 'sort_column': 'Database_ID', 'sort_order': 'asc', 'query_filters': {}}
+2025-12-11 17:58:43 INFO: Using cached DB for pg_lims
+2025-12-11 17:58:43 INFO: Found 12 tables in database: ['Conditions', 'DNA_constructs', 'Experiments', 'Genes', 'Measurement_types', 'Measurements', 'Primers', 'Samples', 'Strains', 'dgoA_alleles_new', 'dgoA_alleles_old', 'robotic_mt_samples']
+2025-12-11 17:58:43 INFO: Ensured indices for table Genes
+2025-12-11 18:00:42 INFO: list_pangenomes for demo
+2025-12-11 18:00:42 INFO: Starting list_tables
+2025-12-11 18:00:42 INFO: Params: {'berdl_table_id': 'demo', 'pangenome_id': 'pg_lims'}
+2025-12-11 18:00:42 INFO: V1.0: Ignoring berdl_table_id 'demo', using bundled data
+2025-12-11 18:00:42 INFO: Using cached DB for pg_lims
+2025-12-11 18:00:42 INFO: Found 12 tables in database: ['Conditions', 'DNA_constructs', 'Experiments', 'Genes', 'Measurement_types', 'Measurements', 'Primers', 'Samples', 'Strains', 'dgoA_alleles_new', 'dgoA_alleles_old', 'robotic_mt_samples']
+2025-12-11 18:00:42 INFO: Returning 12 tables
+2025-12-11 18:00:42 INFO: Starting get_table_data
+2025-12-11 18:00:42 INFO: Params: {'user_id': 'test_script', 'berdl_table_id': 'demo', 'pangenome_id': 'pg_lims', 'table_name': 'Genes', 'limit': 5, 'offset': 0}
+2025-12-11 18:00:42 INFO: Using cached DB for pg_lims
+2025-12-11 18:00:42 INFO: Found 12 tables in database: ['Conditions', 'DNA_constructs', 'Experiments', 'Genes', 'Measurement_types', 'Measurements', 'Primers', 'Samples', 'Strains', 'dgoA_alleles_new', 'dgoA_alleles_old', 'robotic_mt_samples']
+2025-12-11 18:00:42 INFO: Ensured indices for table Genes
+2025-12-11 18:00:42 INFO: Starting get_table_data
+2025-12-11 18:00:42 INFO: Params: {'user_id': 'test_script', 'berdl_table_id': 'demo', 'pangenome_id': 'pg_lims', 'table_name': 'Genes', 'limit': 5, 'query_filters': {'Gene Name': 'dgoA'}}
+2025-12-11 18:00:42 INFO: Using cached DB for pg_lims
+2025-12-11 18:00:42 INFO: Found 12 tables in database: ['Conditions', 'DNA_constructs', 'Experiments', 'Genes', 'Measurement_types', 'Measurements', 'Primers', 'Samples', 'Strains', 'dgoA_alleles_new', 'dgoA_alleles_old', 'robotic_mt_samples']
+2025-12-11 18:00:42 INFO: Ensured indices for table Genes
