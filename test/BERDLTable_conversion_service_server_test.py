@@ -281,7 +281,7 @@ class BERDLTableConversionServiceTest(unittest.TestCase):
         print(f"\n  Correctly raised error: {context.exception}")
 
     # =========================================================================
-    # V2.0 Feature Tests (Query & Pagination)
+    # Query & Pagination Tests
     # =========================================================================
 
     def test_get_table_data_pagination(self):
@@ -398,6 +398,118 @@ class BERDLTableConversionServiceTest(unittest.TestCase):
             self.assertIn("00", row[id_idx], f"ID should contain '00': {row[id_idx]}")
             
         print(f"\n  Column Filter Verified: Found {len(result['data'])} rows matching {query_filters}")
+
+
+    # =========================================================================
+    # Pangenome & Local Disk Tests
+    # =========================================================================
+
+    def test_list_pangenomes(self):
+        """Test listing pangenomes."""
+        params = {"berdl_table_id": "demo"}
+        result = self.serviceImpl.list_pangenomes(self.ctx, params)[0]
+        
+        self.assertIn("pangenomes", result)
+        self.assertGreater(len(result["pangenomes"]), 0)
+        
+        # Verify LIMS Default exists
+        found_lims = False
+        for pg in result["pangenomes"]:
+            if pg["pangenome_id"] == "pg_lims":
+                found_lims = True
+                self.assertEqual(pg["pangenome_taxonomy"], "LIMS Default (Bundled)")
+                break
+        self.assertTrue(found_lims, "pg_lims should be present in demo mode")
+        print(f"\n  Pangenomes Verified: Found {len(result['pangenomes'])}")
+
+    def test_get_table_data_pangenome_sqlite_flow(self):
+        """Test dynamic pangenome flow (Download + Query)."""
+        # 1. List Tables for pg_lims
+        params_tables = {
+            "berdl_table_id": "demo",
+            "pangenome_id": "pg_lims"
+        }
+        tables_res = self.serviceImpl.list_tables(self.ctx, params_tables)[0]
+        self.assertIn("Genes", tables_res["tables"], "Genes table should be available in pg_lims")
+
+        # 2. Query Genes (Page 1)
+        params_query = {
+            "user_id": "test_suite",
+            "berdl_table_id": "demo",
+            "pangenome_id": "pg_lims",
+            "table_name": "Genes",
+            "limit": 5,
+            "offset": 0
+        }
+        start = time.time()
+        query_res = self.serviceImpl.get_table_data(self.ctx, params_query)[0]
+        elapsed = (time.time() - start) * 1000
+        
+        # Verify Local Source
+        self.assertEqual(query_res["source"], "SQLite", "Should use SQLite after Redis removal")
+        self.assertGreater(query_res["total_count"], 0)
+        self.assertEqual(len(query_res["data"]), 5)
+        
+        print(f"\n  Pangenome Flow Verified: Query latency {elapsed:.2f}ms (Source: {query_res.get('source')})")
+
+    def test_get_table_data_pangenome_filter(self):
+        """Test filtering on downloaded pangenome DB."""
+        params_filter = {
+            "user_id": "test_suite",
+            "berdl_table_id": "demo",
+            "pangenome_id": "pg_lims",
+            "table_name": "Genes",
+            "query_filters": {"Primary_function": "DNA"}
+        }
+        res = self.serviceImpl.get_table_data(self.ctx, params_filter)[0]
+        
+        self.assertEqual(res["source"], "SQLite")
+        self.assertGreater(len(res["data"]), 0)
+        self.assertLess(len(res["data"]), res["total_count"], "Filter should reduce row count")
+        
+        # Verify match
+        pf_idx = res["headers"].index("Primary_function")
+        first_row_func = res["data"][0][pf_idx]
+        self.assertIn("dna", first_row_func.lower(), "Result should match filter (case-insensitive)")
+        
+        print(f"\n  Pangenome Filter Verified: Found {len(res['data'])} matches for 'DNA'")
+
+    def test_get_table_data_simulated_error(self):
+        """Test simulated backend error for Mock Pangenomes."""
+        # pg_ecoli_k12 is defined as a mock without a file, triggering Value Error in get_pangenome_db_path logic or subsequent steps
+        # Actually in Impl: _get_pangenome_db_path handles "default" or mappings.
+        # If I request "pg_ecoli_k12", it might fail if file doesn't exist.
+        params = {
+            "berdl_table_id": "demo",
+            "pangenome_id": "pg_ecoli_k12",
+            "table_name": "Genes"
+        }
+        
+        # The service is designed to RAISE ValueError if DB not found.
+        # The UI handles this via try/catch.
+        # Here we verify it raises ValueError with specific message identifying it as missing/mock.
+        with self.assertRaises(ValueError) as context:
+            self.serviceImpl.get_table_data(self.ctx, params)
+        
+        self.assertIn("Simulated Error", str(context.exception))
+        self.assertIn("pg_ecoli_k12", str(context.exception))
+        print(f"\n  Simulated Error Verified: {context.exception}")
+
+    def test_get_table_data_bad_params(self):
+        """Test robust handling of invalid V2/V4 params."""
+        params = {
+            "table_name": "Genes",
+            "limit": -10, # Invalid limit
+            "offset": "invalid" # Invalid type
+        }
+        # SQLite wrapper might handle or fail.
+        # db_utils.get_table_data converts limit to int(limit).
+        # int(-10) is -10. SQLite LIMIT -1 means no limit (or depends on version).
+        # offset "invalid" -> int("invalid") raises ValueError.
+        
+        with self.assertRaises((ValueError, TypeError)):
+            self.serviceImpl.get_table_data(self.ctx, params)
+        print("\n  Bad Params Verified: Caught invalid offset")
 
     # =========================================================================
     # Performance Stress Tests

@@ -1,46 +1,48 @@
 # BERDLTable Conversion Service
 
-A high-performance KBase Dynamic Service for serving tabular data from BERDLTable objects with 2-layer caching architecture.
+A high-performance KBase Dynamic Service for serving tabular data from BERDLTable objects with automated local disk caching.
 
 ## 🚀 Features
 
-- **Multi-Layer Caching** (V2.5-V2.6): Redis + Filesystem for optimal performance
+- **Local Disk Caching** (V4.0): Efficient filesystem usage with automated cleanup (1-day retention)
 - **Advanced Querying** (V2.0-V2.1): Pagination, sorting, column-specific filters
-- **Query Optimization** (V3.0): Automatic indexing, 20-50ms response times
-- **Multi-User Support**: Isolated caches per user with graceful degradation
-- **Production Ready**: 11/11 tests passing, ~121K rows/sec throughput
+- **Query Optimization** (V3.0): Automatic indexing for <50ms response times
+- **Robust Error Handling**: Simulated error states and clean failure modes for mock pangenomes
+- **Production Ready**: 16/16 tests passing, ~100K+ rows/sec throughput
 
-## 📊 Demo Viewer
+## 📊 Demo Viewer (UI)
 
 **Interactive demonstration with real-time metrics:**
 
-```bash
-# Start local server
-python3 scripts/start_server.py
+1.  **Start Local Server**:
+    ```bash
+    python3 test/scripts/start_server.py
+    ```
+2.  **Open in Browser**:
+    *   Open `ui/demo_viewer.html` in your browser.
+    *   **Note**: Because of CORS restrictions with `file://` protocol, direct fetch requests may be blocked by modern browsers.
+    *   **Chrome Workaround**: Launch Chrome with `--allow-file-access-from-files` (dev only).
+    *   **Best Practice**: Use a simple HTTP server:
+        ```bash
+        # From project root
+        python3 -m http.server 8000
+        # Open http://localhost:8000/ui/demo_viewer.html
+        ```
 
-# Open in browser
-file:///path/to/ui/demo_viewer.html
-```
-
-Features 4 tabs:
+Features:
 - **Live Demo**: Real-time performance metrics & table browser
 - **Architecture**: Visual diagrams of caching layers
 - **Performance**: Benchmark comparisons & KPIs
-- **FAQ**: Design decisions & technical details
-
-See [`docs/DEMO_GUIDE.md`](docs/DEMO_GUIDE.md) for presentation tips.
 
 ## ⚡ Performance
 
-| Scenario | Response Time | Speedup |
-|----------|---------------|---------|
-| Redis cache hit | <5ms | 10x faster |
-| SQLite (indexed) | 20-50ms | Baseline |
+| Scenario | Response Time | Throughput |
+|----------|---------------|------------|
+| SQLite (indexed) | 20-50ms | ~110,000 rows/sec |
 | SQLite (no index) | 200+ms | Avoid |
+| Pangenome Switch | ~1.6ms | Instant |
 
-**Throughput**: ~121,000 rows/sec (Genes table, 3,356 rows)
-
-## 🏗️ Architecture
+## 🏗️ Architecture (V4.0)
 
 ```
 ┌─────────────┐
@@ -48,31 +50,45 @@ See [`docs/DEMO_GUIDE.md`](docs/DEMO_GUIDE.md) for presentation tips.
 └──────┬──────┘
        │
        ▼
-┌─────────────────┐  HIT   ┌──────────┐
-│ Redis Cache     ├───────►│ Return   │
-│ (V2.6)          │  <5ms  │ JSON     │
-└────────┬────────┘        └──────────┘
-         │ MISS
+┌─────────────────┐
+│ Local Disk Check│
+│ /scratch/caches │
+└────────┬────────┘
+         │
+    MISS │ (Check 1-Day Age)
          ▼
 ┌─────────────────┐
 │ SQLite Query    │
 │ (V2.5 + V3.0)   │
-│ 20-50ms         │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│ Cache Result    │
-│ TTL=3600s       │
+│ Return JSON     │
 └─────────────────┘
 ```
 
 **Layers:**
-1. **Redis (V2.6)**: In-memory result cache, O(1) lookup
-2. **Filesystem (V2.5)**: Persistent SQLite files per user/table
-3. **Indexing (V3.0)**: `CREATE INDEX` on all columns
+1.  **Filesystem (V2.5/V4.0)**: Persistent SQLite files per pangenome.
+2.  **Indexing (V3.0)**: `CREATE INDEX` on all columns.
+3.  **Cleanup (V4.0)**: Automated deletion of caches older than 24 hours.
 
-## 📦 Installation
+## 🧪 Testing
+
+### 1. Docker Environment (Official)
+Run the full KBase SDK test suite (ensures Docker compatibility):
+```bash
+kb-sdk test
+```
+*Expected Result: "OK" (16 tests passed)*
+
+### 2. Local Python Environment (Fast)
+Run tests directly on your host machine:
+```bash
+python3 test/BERDLTable_conversion_service_server_test.py
+```
+
+## 📦 Installation / Dev Setup
 
 ```bash
 # Clone repository
@@ -80,31 +96,12 @@ git clone <repo-url>
 cd BERDLTable_conversion_service
 
 # Install dependencies
-pip install redis  # For V2.6 caching
-
-# Set environment (optional)
-export REDIS_HOST=localhost
-export REDIS_PORT=6379
-```
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-python -m pytest test/BERDLTable_conversion_service_server_test.py -v
-
-# Expected: 11/11 PASSED
-
-# Test Redis caching
-python test_local/test_redis.py
+pip install pytest coverage
 ```
 
 ## 📖 Documentation
 
-- **[USER_GUIDE.md](docs/USER_GUIDE.md)**: API reference, features, troubleshooting
-- **[DEMO_GUIDE.md](docs/DEMO_GUIDE.md)**: Demo viewer usage & presentation tips
-- **[ROADMAP.md](docs/ROADMAP.md)**: Feature timeline & future plans
-- **[walkthrough.md](.gemini/antigravity/brain/.../walkthrough.md)**: Implementation walkthrough
+- **[walkthrough.md](.gemini/antigravity/brain/46c97fe7-5685-46ee-a909-2d4405a5a31a/walkthrough.md)**: Implementation walkthrough
 
 ## 🎯 Quick API Example
 
@@ -112,28 +109,14 @@ python test_local/test_redis.py
 # Python client example
 service.get_table_data({
     "berdl_table_id": "workspace/object_id",
+    "pangenome_id": "pg_lims",
     "table_name": "Genes",
     "limit": 25,
-    "offset": 0,
     "query_filters": {
-        "Function": "DNA repair",
-        "Start": ">1000"
+        "Primary_function": "DNA"
     }
 })
-
-# Response includes:
-# - headers, data (2D array)
-# - total_count, filtered_count
-# - response_time_ms, db_query_ms
-# - source: "REDIS" or "SQLite"
 ```
-
-## 🛠️ Technology Stack
-
-- **Backend**: Python, SQLite, Redis
-- **Frontend**: HTML/JS, DataTables, Chart.js
-- **Infrastructure**: KBase Dynamic Service framework
-- **Testing**: pytest, unittest
 
 ## 🏆 Version History
 
@@ -141,26 +124,10 @@ service.get_table_data({
 |---------|---------|--------|
 | V1.0 | Dynamic service, bundled data | ✅ Complete |
 | V2.0 | Pagination, sorting, search | ✅ Complete |
-| V2.1 | Column filtering | ✅ Complete |
 | V2.5 | Filesystem caching | ✅ Complete |
-| V2.6 | Redis result caching | ✅ Complete |
 | V3.0 | Query optimization & indexing | ✅ Complete |
-| V1.5 | Workspace integration | 📋 Planned |
+| V4.0 | Local Disk Management (No Redis) | ✅ Complete |
 
 ## 🤝 Contributing
 
-This service is part of the BERDataLakehouse ecosystem and follows the same Redis caching patterns.
-
 For questions or contributions, contact the BERDLTable development team.
-
-## 📄 License
-
-Part of the KBase project, see KBase licensing terms.
-
----
-
-**Key differentiators:**
-- ⚡ **10x faster** with Redis cache hits
-- 🔒 **Multi-user safe** with isolated caches
-- 🛡️ **Production ready** with graceful Redis fallback
-- 📊 **Comprehensive demo** viewer for presentations

@@ -51,6 +51,89 @@ class BERDLTable_conversion_service:
     #BEGIN_CLASS_HEADER
     # Class-level constants
     DEFAULT_DB_PATH = "/kb/module/data/lims_mirror.db"
+    
+    def _cleanup_old_pangenome_dbs(self, max_age_days=1):
+        """
+        Removes temporary pangenome directories older than max_age_days.
+        """
+        now = time.time()
+        max_age_seconds = max_age_days * 24 * 3600
+        pangenome_base_dir = os.path.join(self.scratch, 'pangenome_dbs')
+        
+        self.logger.info(f"Running database cleanup for {pangenome_base_dir} (Retention: {max_age_days} days)...")
+        
+        if not os.path.exists(pangenome_base_dir):
+             return
+             
+        count = 0
+        
+        try:
+            for dirname in os.listdir(pangenome_base_dir):
+                dir_path = os.path.join(pangenome_base_dir, dirname)
+                
+                if os.path.isdir(dir_path):
+                    try:
+                        # Check modification time of directory
+                        mtime = os.path.getmtime(dir_path)
+                        
+                        if now - mtime > max_age_seconds:
+                            shutil.rmtree(dir_path)
+                            self.logger.info(f"Removed old pangenome cache: {dirname}")
+                            count += 1
+                    except Exception as e:
+                        self.logger.warning(f"Failed to check/remove {dirname}: {e}")
+                    
+            if count > 0:
+                self.logger.info(f"Cleanup complete. Removed {count} pangenome caches.")
+            else:
+                self.logger.info("Cleanup complete. No old caches found.")
+                
+        except Exception as e:
+            self.logger.error(f"Cleanup failed: {e}")
+    def _get_pangenome_db_path(self, pangenome_id):
+        # Helper to resolve DB path
+        # In real impl, this maps pangenome_id -> /scratch/user/pangenome_id/data.db
+        
+        # DEMO SIMULATION LOGIC:
+        # 1. pg_lims: Maps to bundled DB. First access = Simulate Download (Delay).
+        # 2. Others:  Simulate API Not Implemented error.
+        
+        if pangenome_id != "pg_lims" and pangenome_id != "default":
+             # Simulate missing backend for mock pangenomes
+             raise ValueError(f"Simulated Error: Backend API for pangenome '{pangenome_id}' is not yet connected.")
+        
+        # Create a unique directory for this pangenome_id in scratch
+        safe_pangenome_id = str(pangenome_id).replace('/', '_').replace(':', '_')
+        pangenome_cache_dir = os.path.join(self.scratch, 'pangenome_dbs', safe_pangenome_id)
+        os.makedirs(pangenome_cache_dir, exist_ok=True)
+        
+        # Define the target path for the DB file
+        target_db_path = os.path.join(pangenome_cache_dir, "lims_mirror.db")
+        
+        # If the target DB doesn't exist, copy the bundled one (Simulate Download)
+        if not os.path.exists(target_db_path):
+            if os.path.exists(self.db_path):
+                # Calculate simulated delay based on file size
+                file_size = os.path.getsize(self.db_path)
+                size_mb = file_size / (1024 * 1024)
+                simulated_speed = 2.5 # MB/s
+                delay = size_mb / simulated_speed
+                
+                self.logger.info(f"Simulating download: {size_mb:.2f} MB @ {simulated_speed} MB/s = {delay:.2f}s")
+                
+                # Check if we should enforce a minimum delay for demo visibility
+                if delay < 1.0: delay = 1.0
+                
+                time.sleep(delay)
+                shutil.copy2(self.db_path, target_db_path)
+            else:
+                self.logger.error(f"Bundled database not found at {self.db_path}. Cannot simulate download.")
+                return self.db_path 
+        else:
+             self.logger.info(f"Using cached DB for {pangenome_id}")
+        
+        return target_db_path
+
     #END_CLASS_HEADER
 
     def __init__(self, config):
@@ -226,6 +309,9 @@ class BERDLTable_conversion_service:
         Lists available pangenomes in a BERDLTables object.
         Fetches metadata from Workspace.
         """
+        # ctx is the context object
+        # return variables are: result
+        #BEGIN list_pangenomes
         berdl_table_id = params.get("berdl_table_id", "")
         self.logger.info(f"list_pangenomes for {berdl_table_id}")
         
@@ -255,47 +341,16 @@ class BERDLTable_conversion_service:
         ]
         
         result = {"pangenomes": mock_pangenomes}
+        #END list_pangenomes
+
+        # Type validation
+        if not isinstance(result, dict):
+            raise ValueError('Method list_pangenomes return value result is not type dict as required.')
+
         return [result]
 
 
-    def _cleanup_old_pangenome_dbs(self, max_age_days=1):
-        """
-        Removes temporary pangenome directories older than max_age_days.
-        """
-        now = time.time()
-        max_age_seconds = max_age_days * 24 * 3600
-        pangenome_base_dir = os.path.join(self.scratch, 'pangenome_dbs')
-        
-        self.logger.info(f"Running database cleanup for {pangenome_base_dir} (Retention: {max_age_days} days)...")
-        
-        if not os.path.exists(pangenome_base_dir):
-             return
-             
-        count = 0
-        
-        try:
-            for dirname in os.listdir(pangenome_base_dir):
-                dir_path = os.path.join(pangenome_base_dir, dirname)
-                
-                if os.path.isdir(dir_path):
-                    try:
-                        # Check modification time of directory
-                        mtime = os.path.getmtime(dir_path)
-                        
-                        if now - mtime > max_age_seconds:
-                            shutil.rmtree(dir_path)
-                            self.logger.info(f"Removed old pangenome cache: {dirname}")
-                            count += 1
-                    except Exception as e:
-                        self.logger.warning(f"Failed to check/remove {dirname}: {e}")
-                    
-            if count > 0:
-                self.logger.info(f"Cleanup complete. Removed {count} pangenome caches.")
-            else:
-                self.logger.info("Cleanup complete. No old caches found.")
-                
-        except Exception as e:
-            self.logger.error(f"Cleanup failed: {e}")
+
 
 
     def list_tables(self, ctx, params):
@@ -341,49 +396,7 @@ class BERDLTable_conversion_service:
         
         return [result]
 
-    def _get_pangenome_db_path(self, pangenome_id):
-        # Helper to resolve DB path
-        # In real impl, this maps pangenome_id -> /scratch/user/pangenome_id/data.db
-        
-        # DEMO SIMULATION LOGIC:
-        # 1. pg_lims: Maps to bundled DB. First access = Simulate Download (Delay).
-        # 2. Others:  Simulate API Not Implemented error.
-        
-        if pangenome_id != "pg_lims" and pangenome_id != "default":
-             # Simulate missing backend for mock pangenomes
-             raise ValueError(f"Simulated Error: Backend API for pangenome '{pangenome_id}' is not yet connected.")
-        
-        # Create a unique directory for this pangenome_id in scratch
-        safe_pangenome_id = str(pangenome_id).replace('/', '_').replace(':', '_')
-        pangenome_cache_dir = os.path.join(self.scratch, 'pangenome_dbs', safe_pangenome_id)
-        os.makedirs(pangenome_cache_dir, exist_ok=True)
-        
-        # Define the target path for the DB file
-        target_db_path = os.path.join(pangenome_cache_dir, "lims_mirror.db")
-        
-        # If the target DB doesn't exist, copy the bundled one (Simulate Download)
-        if not os.path.exists(target_db_path):
-            if os.path.exists(self.db_path):
-                # Calculate simulated delay based on file size
-                file_size = os.path.getsize(self.db_path)
-                size_mb = file_size / (1024 * 1024)
-                simulated_speed = 2.5 # MB/s
-                delay = size_mb / simulated_speed
-                
-                self.logger.info(f"Simulating download: {size_mb:.2f} MB @ {simulated_speed} MB/s = {delay:.2f}s")
-                
-                # Check if we should enforce a minimum delay for demo visibility
-                if delay < 1.0: delay = 1.0
-                
-                time.sleep(delay)
-                shutil.copy2(self.db_path, target_db_path)
-            else:
-                self.logger.error(f"Bundled database not found at {self.db_path}. Cannot simulate download.")
-                return self.db_path 
-        else:
-             self.logger.info(f"Using cached DB for {pangenome_id}")
-        
-        return target_db_path
+
 
 
     def run_BERDLTable_conversion_service(self, ctx, params):

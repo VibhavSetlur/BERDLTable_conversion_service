@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 # Add lib to path
-lib_path = Path(__file__).resolve().parents[1] / "lib"
+lib_path = Path(__file__).resolve().parents[2] / "lib"
 sys.path.append(str(lib_path))
 
 from BERDLTable_conversion_service.BERDLTable_conversion_serviceImpl import BERDLTable_conversion_service

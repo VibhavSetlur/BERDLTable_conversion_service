@@ -19,8 +19,8 @@ import sys
 import time
 
 # Configuration
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'lims_mirror.db')
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'ui', 'mock_data')
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'lims_mirror.db')
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'ui', 'mock_data')
 
 
 def export_database(db_path: str, output_dir: str) -> None:
