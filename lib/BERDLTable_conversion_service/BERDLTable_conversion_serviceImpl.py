@@ -17,13 +17,26 @@ DATE: 2024
 #BEGIN_HEADER
 import logging
 import os
+import shutil
 import time
 
 from BERDLTable_conversion_service import db_utils
-from installed_clients.KBaseReportClient import KBaseReport
-import shutil
-import hashlib
-import json
+from installed_clients.kbutillib.notebook_utils import NotebookUtils
+from installed_clients.kbutillib.kb_ws_utils import KBWSUtils
+
+class NotebookUtil(NotebookUtils,KBWSUtils):
+    def __init__(self,**kwargs):
+        # Default to /kb/module/work/tmp if script_dir not provided
+        # But here we instantiate with explicit notebook_folder usually
+        if 'notebook_folder' not in kwargs:
+            kwargs['notebook_folder'] = "/kb/module/work/tmp"
+        
+        super().__init__(
+            name="KBWSUtils Service",
+            kb_version="appdev",
+            **kwargs
+        )
+
 #END_HEADER
 
 
@@ -90,49 +103,85 @@ class BERDLTable_conversion_service:
                 
         except Exception as e:
             self.logger.error(f"Cleanup failed: {e}")
-    def _get_pangenome_db_path(self, pangenome_id):
+
+    def _get_pangenome_db_path(self, pangenome_id, berdl_table_id=None, token=None):
         # Helper to resolve DB path
-        # In real impl, this maps pangenome_id -> /scratch/user/pangenome_id/data.db
-        
-        # DEMO SIMULATION LOGIC:
-        # 1. pg_lims: Maps to bundled DB. First access = Simulate Download (Delay).
-        # 2. Others:  Simulate API Not Implemented error.
-        
-        if pangenome_id != "pg_lims" and pangenome_id != "default":
-             # Simulate missing backend for mock pangenomes
-             raise ValueError(f"Simulated Error: Backend API for pangenome '{pangenome_id}' is not yet connected.")
+        # 1. If berdl_table_id is provided, try to fetch object and download DB
+        # 2. Fallback to bundled data if no berdl_table_id or download fails (for local testing)
         
         # Create a unique directory for this pangenome_id in scratch
         safe_pangenome_id = str(pangenome_id).replace('/', '_').replace(':', '_')
         pangenome_cache_dir = os.path.join(self.scratch, 'pangenome_dbs', safe_pangenome_id)
         os.makedirs(pangenome_cache_dir, exist_ok=True)
         
-        # Define the target path for the DB file
         target_db_path = os.path.join(pangenome_cache_dir, "lims_mirror.db")
         
-        # If the target DB doesn't exist, copy the bundled one (Simulate Download)
-        if not os.path.exists(target_db_path):
-            if os.path.exists(self.db_path):
-                # Calculate simulated delay based on file size
-                file_size = os.path.getsize(self.db_path)
-                size_mb = file_size / (1024 * 1024)
-                simulated_speed = 2.5 # MB/s
-                delay = size_mb / simulated_speed
-                
-                self.logger.info(f"Simulating download: {size_mb:.2f} MB @ {simulated_speed} MB/s = {delay:.2f}s")
-                
-                # Check if we should enforce a minimum delay for demo visibility
-                if delay < 1.0: delay = 1.0
-                
-                time.sleep(delay)
-                shutil.copy2(self.db_path, target_db_path)
+        # Check cache existence and age (1 Day Retention)
+        if os.path.exists(target_db_path):
+            mtime = os.path.getmtime(target_db_path)
+            age_hours = (time.time() - mtime) / 3600
+            if age_hours < 24:
+                self.logger.info(f"Using cached DB for {pangenome_id} at {target_db_path} (Age: {age_hours:.1f}h)")
+                return target_db_path
             else:
-                self.logger.error(f"Bundled database not found at {self.db_path}. Cannot simulate download.")
-                return self.db_path 
-        else:
-             self.logger.info(f"Using cached DB for {pangenome_id}")
-        
-        return target_db_path
+                self.logger.info(f"Cached DB for {pangenome_id} is expired (Age: {age_hours:.1f}h). Re-downloading...")
+                # Ideally try remove it, or just let download overwrite
+                # os.remove(target_db_path)
+
+        # Try to download from Workspace if info provided
+        if berdl_table_id and token:
+            try:
+                self.logger.info(f"Attempting to download DB for {pangenome_id} from {berdl_table_id}")
+                nu = NotebookUtil(token=token, notebook_folder=self.scratch)
+                
+                # Fetch object data
+                # We assume berdl_table_id is a valid ref e.g. "76990/ADP1Test"
+                obj_data = nu.get_object(berdl_table_id)
+                data = obj_data.get('data', {})
+                pangenome_list = data.get('pangenome_data', [])
+                
+                handle_ref = None
+                # If pangenome_id matches one in the list, use it.
+                # If pangenome_id is "default", use the first one.
+                
+                for pg in pangenome_list:
+                    if str(pg.get('pangenome_id')) == str(pangenome_id):
+                        handle_ref = pg.get('sqllite_tables_handle_ref')
+                        break
+                
+                if not handle_ref and len(pangenome_list) > 0 and (pangenome_id == "default" or pangenome_id == "pg_lims"):
+                    # Fallback for default request to first item
+                    handle_ref = pangenome_list[0].get('sqllite_tables_handle_ref')
+                    self.logger.info(f"Using first available pangenome: {pangenome_list[0].get('pangenome_id')}")
+
+                if handle_ref:
+                    self.logger.info(f"Found handle ref: {handle_ref}. Downloading...")
+                    downloaded_path = nu.download_blob_file(handle_ref, target_db_path)
+                    if downloaded_path and os.path.exists(downloaded_path):
+                        self.logger.info(f"Successfully downloaded DB to {downloaded_path}")
+                        return downloaded_path
+                    else:
+                        self.logger.warning("Download returned None or file missing.")
+                else:
+                    self.logger.warning(f"No matching pangenome found for {pangenome_id} in {berdl_table_id}")
+
+            except Exception as e:
+                self.logger.error(f"Failed to download from workspace: {e}")
+                # Fallthrough to bundled
+
+        # Valid fallback for local/demo/failed download
+        if pangenome_id == "pg_lims" or pangenome_id == "default" or not berdl_table_id:
+            if os.path.exists(self.db_path):
+                self.logger.info(f"Using bundled DB as fallback for {pangenome_id}")
+                if not os.path.exists(target_db_path):
+                     shutil.copy2(self.db_path, target_db_path)
+                return target_db_path
+            else:
+                self.logger.error(f"Bundled database not found at {self.db_path}.")
+                return self.db_path
+
+        # If we reached here, we failed to find/download and it's not a mock ID
+        raise ValueError(f"Could not retrieve database for pangenome '{pangenome_id}' from object '{berdl_table_id}'")
 
     #END_CLASS_HEADER
 
@@ -229,9 +278,8 @@ class BERDLTable_conversion_service:
 
 
         # 3. Locate/Download SQLite DB (Level 2)
-        # In a real scenario, we use handle_ref from the pangenome metadata to download
-        # For V1.0/Demo, we map everything to the local bundled DB via the helper
-        db_path = self._get_pangenome_db_path(pangenome_id)
+        token = ctx.get('token')
+        db_path = self._get_pangenome_db_path(pangenome_id, berdl_table_id=berdl_table_id, token=token)
         
         if not os.path.exists(db_path):
             self.logger.error(f"Database not found at {db_path}")
@@ -313,34 +361,47 @@ class BERDLTable_conversion_service:
         # return variables are: result
         #BEGIN list_pangenomes
         berdl_table_id = params.get("berdl_table_id", "")
-        self.logger.info(f"list_pangenomes for {berdl_table_id}")
+        token = ctx.get('token')
         
-        # Mock Data Structure based on user request (V3.1)
-        mock_pangenomes = [
-            {
-                "pangenome_id": "pg_lims",
-                "pangenome_taxonomy": "LIMS Default (Bundled)",
-                "user_genomes": ["lims/bundled"],
-                "berdl_genomes": ["lims_mirror"],
-                "handle_ref": "bundled"
-            },
-            {
-                "pangenome_id": "pg_ecoli_k12",
-                "pangenome_taxonomy": "Escherichia coli K12 (Mock)",
-                "user_genomes": ["my_ws/bin_1", "my_ws/bin_2"],
-                "berdl_genomes": ["ecoli1", "ecoli2"],
-                "handle_ref": "KBH_12345"
-            },
-            {
-                "pangenome_id": "pg_b_subtilis",
-                "pangenome_taxonomy": "Bacillus subtilis (Mock)",
-                "user_genomes": ["my_ws/bin_3"],
-                "berdl_genomes": ["bsub1"],
-                "handle_ref": "KBH_67890"
-            }
-        ]
+        real_pangenomes = []
+        if berdl_table_id and token:
+            try:
+                nu = NotebookUtil(token=token, notebook_folder=self.scratch)
+                obj_data = nu.get_object(berdl_table_id)
+                data = obj_data.get('data', {})
+                pg_list = data.get('pangenome_data', [])
+                for pg in pg_list:
+                    real_pangenomes.append({
+                        "pangenome_id": pg.get('pangenome_id'),
+                        "pangenome_taxonomy": pg.get('pangenome_taxonomy', 'Unknown'),
+                        "user_genomes": pg.get('user_genomes', []),
+                        "berdl_genomes": pg.get('datalake_genomes', []),
+                        "handle_ref": pg.get('sqllite_tables_handle_ref')
+                    })
+            except Exception as e:
+                self.logger.warning(f"Failed to list pangenomes from {berdl_table_id}: {e}")
         
-        result = {"pangenomes": mock_pangenomes}
+        if real_pangenomes:
+             result = {"pangenomes": real_pangenomes}
+        else:
+            # Fallback/Mock Data
+            mock_pangenomes = [
+                {
+                    "pangenome_id": "pg_lims",
+                    "pangenome_taxonomy": "LIMS Default (Bundled)",
+                    "user_genomes": ["lims/bundled"],
+                    "berdl_genomes": ["lims_mirror"],
+                    "handle_ref": "bundled"
+                },
+                {
+                    "pangenome_id": "pg_ecoli_k12",
+                    "pangenome_taxonomy": "Escherichia coli K12 (Mock)",
+                    "user_genomes": ["my_ws/bin_1", "my_ws/bin_2"],
+                    "berdl_genomes": ["ecoli1", "ecoli2"],
+                    "handle_ref": "KBH_12345"
+                }
+            ]
+            result = {"pangenomes": mock_pangenomes}
         #END list_pangenomes
 
         # Type validation
@@ -377,8 +438,9 @@ class BERDLTable_conversion_service:
             self.logger.info(f"V1.0: Ignoring berdl_table_id '{berdl_table_id}', using bundled data")
         
         # In real impl, use pangenome_id to find correct DB file
-        pangenome_id = params.get("pangenome_id", "default") # Added pangenome_id
-        db_path = self._get_pangenome_db_path(pangenome_id) # Changed to use helper
+        pangenome_id = params.get("pangenome_id", "default")
+        token = ctx.get('token')
+        db_path = self._get_pangenome_db_path(pangenome_id, berdl_table_id=berdl_table_id, token=token)
         
         try:
             tables = db_utils.list_tables(db_path)
@@ -398,6 +460,36 @@ class BERDLTable_conversion_service:
 
 
 
+
+
+    def clear_pangenome_cache(self, ctx, params):
+        """
+        Clears the local cache for a given pangenome (or all if specified).
+        params: { "pangenome_id": "str" }
+        """
+        self.logger.info("Request to clear pangenome cache received.")
+        pangenome_id = params.get("pangenome_id")
+        
+        if not pangenome_id:
+            # If not provided, maybe clear all? For safety, require ID for now or "all"
+            if params.get("all") is True:
+                 shutil.rmtree(os.path.join(self.scratch, 'pangenome_dbs'), ignore_errors=True)
+                 return [{"status": "success", "message": "All caches cleared"}]
+            return [{"status": "error", "message": "pangenome_id required"}]
+
+        safe_pangenome_id = str(pangenome_id).replace('/', '_').replace(':', '_')
+        pangenome_cache_dir = os.path.join(self.scratch, 'pangenome_dbs', safe_pangenome_id)
+        
+        if os.path.exists(pangenome_cache_dir):
+            try:
+                shutil.rmtree(pangenome_cache_dir)
+                self.logger.info(f"Deleted cache for {pangenome_id}")
+                return [{"status": "success", "message": f"Cache cleared for {pangenome_id}"}]
+            except Exception as e:
+                self.logger.error(f"Failed to delete cache: {e}")
+                return [{"status": "error", "message": str(e)}]
+        else:
+            return [{"status": "success", "message": "Cache already empty"}]
 
     def run_BERDLTable_conversion_service(self, ctx, params):
         """

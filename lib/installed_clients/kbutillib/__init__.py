@@ -1,0 +1,144 @@
+"""KBUtilLib - Modular utility framework for scientific and development projects."""
+
+# Core utilities - these should always be available
+from .base_utils import BaseUtils
+from .shared_env_utils import SharedEnvUtils
+
+# Optional modules - wrapped in try-except to handle missing dependencies
+try:
+    from .notebook_utils import NotebookUtils, DataObject, NumberType, DataType
+except ImportError:
+    NotebookUtils = None
+    DataObject = None
+    NumberType = None
+    DataType = None
+
+try:
+    from .kb_ws_utils import KBWSUtils
+except ImportError:
+    KBWSUtils = None
+
+try:
+    from .kb_genome_utils import KBGenomeUtils
+except ImportError:
+    KBGenomeUtils = None
+
+try:
+    from .ms_biochem_utils import MSBiochemUtils
+except ImportError:
+    MSBiochemUtils = None
+
+try:
+    from .model_standardization_utils import ModelStandardizationUtils
+except ImportError:
+    ModelStandardizationUtils = None
+
+try:
+    from .kb_model_utils import KBModelUtils
+except ImportError:
+    KBModelUtils = None
+
+try:
+    from .ms_fba_utils import MSFBAUtils
+except ImportError:
+    MSFBAUtils = None
+
+try:
+    from .kb_sdk_utils import KBSDKUtils
+except ImportError:
+    KBSDKUtils = None
+
+try:
+    from .argo_utils import ArgoUtils
+except ImportError:
+    ArgoUtils = None
+
+try:
+    from .ai_curation_utils import AICurationUtils
+except ImportError:
+    AICurationUtils = None
+
+try:
+    from .escher_utils import EscherUtils
+except ImportError:
+    EscherUtils = None
+
+try:
+    from .kb_annotation_utils import KBAnnotationUtils
+except ImportError:
+    KBAnnotationUtils = None
+
+try:
+    from .kb_plm_utils import KBPLMUtils
+except ImportError:
+    KBPLMUtils = None
+
+try:
+    from .kb_uniprot_utils import KBUniProtUtils
+except ImportError:
+    KBUniProtUtils = None
+
+try:
+    from .skani_utils import SKANIUtils
+except ImportError:
+    SKANIUtils = None
+
+try:
+    from .kb_reads_utils import KBReadsUtils, Assembly, AssemblySet, Reads, ReadSet
+except ImportError:
+    KBReadsUtils = None
+    Assembly = None
+    AssemblySet = None
+    Reads = None
+    ReadSet = None
+
+try:
+    from .bvbrc_utils import BVBRCUtils
+except ImportError:
+    BVBRCUtils = None
+
+try:
+    from .patric_ws_utils import PatricWSUtils
+except ImportError:
+    PatricWSUtils = None
+
+# Import example composite classes
+# Temporarily disabled for testing core functionality
+# try:
+#     from . import examples
+# except ImportError:
+#     examples = None
+examples = None
+
+__all__ = [
+    "AICurationUtils",
+    "ArgoUtils",
+    "Assembly",
+    "AssemblySet",
+    "BaseUtils",
+    "BVBRCUtils",
+    "DataObject",
+    "DataType",
+    "EscherUtils",
+    "KBAnnotationUtils",
+    "KBGenomeUtils",
+    "KBModelUtils",
+    "KBPLMUtils",
+    "KBReadsUtils",
+    "KBSDKUtils",
+    "KBUniProtUtils",
+    "KBWSUtils",
+    "ModelStandardizationUtils",
+    "MSBiochemUtils",
+    "MSFBAUtils",
+    "NotebookUtils",
+    "NumberType",
+    "PatricWSUtils",
+    "Reads",
+    "ReadSet",
+    "SharedEnvUtils",
+    "SKANIUtils",
+    "examples",
+]
+
+__version__ = "0.1.0"

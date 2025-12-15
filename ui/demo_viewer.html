@@ -12,15 +12,15 @@
 
     <style>
         :root {
-            --bg-primary: #0a0e27;
-            --bg-secondary: #151932;
-            --bg-tertiary: #1e2746;
-            --accent-primary: #00d9ff;
-            --accent-secondary: #7c3aed;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-tertiary: #f1f5f9;
+            --accent-primary: #0f172a;
+            --accent-secondary: #3b82f6;
             --accent-success: #10b981;
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
-            --border-color: #334155;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #cbd5e1;
         }
 
         * {
@@ -70,13 +70,51 @@
         }
 
         .metric-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
+            background: #f8f9fa;
             border-radius: 8px;
-            padding: 16px;
+            padding: 15px;
             text-align: center;
-            position: relative;
-            overflow: hidden;
+            border: 1px solid #e9ecef;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Architecture Diagram Styles */
+        .arch-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            font-size: 0.9em;
+        }
+
+        .arch-node {
+            background: white;
+            border: 2px solid #3b82f6;
+            color: #1e293b;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .arch-arrow {
+            margin: 0 10px;
+            color: #94a3b8;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .arch-label {
+            display: block;
+            font-size: 0.75em;
+            color: #64748b;
+            margin-top: 4px;
+            font-weight: normal;
         }
 
         .metric-value {
@@ -93,39 +131,6 @@
             letter-spacing: 0.5px;
         }
 
-        /* Visual Flow Diagram */
-        .flow-diagram {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            padding: 20px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            margin-bottom: 24px;
-            flex-wrap: wrap;
-        }
-
-        .flow-box {
-            padding: 10px 16px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 0.85rem;
-            text-align: center;
-            min-width: 120px;
-        }
-
-        .flow-box.active {
-            border-color: var(--accent-primary);
-            box-shadow: 0 0 10px rgba(0, 217, 255, 0.2);
-        }
-
-        .flow-arrow {
-            color: var(--text-secondary);
-            font-size: 1.2rem;
-        }
 
         /* Controls */
         .controls {
@@ -245,23 +250,6 @@
     </div>
 
     <div class="container">
-        <!-- Pangenome Flow Diagram -->
-        <div class="flow-diagram">
-            <div class="flow-box">Client Request</div>
-            <div class="flow-arrow">→</div>
-            <div class="flow-box" id="flow-pangenome" style="border-color: var(--accent-secondary);">
-                <strong>Local Pangenome DB</strong><br>
-                <span style="font-size:0.75rem;">(Check/Download)</span>
-            </div>
-            <div class="flow-arrow">→</div>
-            <div class="flow-box" id="flow-sqlite">
-                <strong>SQLite Query</strong><br>
-                <span style="font-size:0.75rem; color:#8b5cf6;">Indexing + Pagination</span>
-            </div>
-            <div class="flow-arrow">→</div>
-            <div class="flow-box">Return JSON</div>
-        </div>
-
         <!-- Metrics -->
         <div class="metrics-grid">
             <div class="metric-card">
@@ -285,10 +273,27 @@
         <!-- Controls -->
         <div class="controls">
             <div class="control-group">
-                <label>1. Select Pangenome</label>
-                <select id="pangenome-select">
-                    <option value="">Loading...</option>
-                </select>
+                <label for="pangenome-select">Select Pangenome <span id="pg-status"></span></label>
+                <div style="display: flex; gap: 10px;">
+                    <select id="pangenome-select" style="flex-grow: 1;">
+                        <option value="">Loading...</option>
+                    </select>
+                    <button class="btn" id="btn-clear-cache" style="background: #ef4444; width: auto; padding: 0 15px;"
+                        title="Clear local cache to force re-download">
+                        Clear Cache
+                    </button>
+                </div>
+            </div>
+
+            <div class="arch-diagram">
+                <div class="arch-node">UI Request<span class="arch-label">Client</span></div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-node">Service Layer<span class="arch-label">Python</span></div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-node" style="border-color: #10b981;">Cache Check<span
+                        class="arch-label">/scratch</span></div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-node">SQLite/KBase<span class="arch-label">Data Source</span></div>
             </div>
             <div class="control-group">
                 <label>2. Select Table</label>
@@ -297,281 +302,469 @@
                 </select>
             </div>
             <div class="control-group">
+                <label>Berdl Table Object ID</label>
+                <input type="text" id="berdl-id" value="76990/ADP1Test">
+            </div>
+            <div class="control-group">
+                <label for="kb-token">KBase Token</label>
+                <input type="password" id="kb-token" placeholder="Leave empty to use server default...">
+                <small style="color: #666; display: block; margin-top: 5px;">* If empty, uses token from test.cfg on
+                    server.</small>
+            </div>
+            <div class="control-group">
                 <label>User ID (Isolation Scope)</label>
                 <input type="text" id="user-id" value="demo_user">
             </div>
             <div class="control-group">
                 <label>&nbsp;</label>
-                <button id="btn-load">Load Table</button>
+                <div style="display: flex;">
+                    <button class="btn" id="btn-load">Load Table</button>
+                    <button class="btn" id="btn-reset-filters" style="background: #64748b; margin-left: 10px;">Reset
+                        Filters</button>
+                </div>
             </div>
+
+            <!-- Data Table -->
+            <table id="data-table" class="display" style="width:100%">
+                <thead></thead>
+                <tbody></tbody>
+                <tfoot></tfoot>
+            </table>
         </div>
 
-        <!-- Data Table -->
-        <table id="data-table" class="display" style="width:100%">
-            <thead></thead>
-            <tbody></tbody>
-            <tfoot></tfoot>
-        </table>
-    </div>
+        <!-- Libs -->
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 
-    <!-- Libs -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+        <script>
+            // State
+            let table; // DataTable instance
+            let stats = { queries: 0, hits: 0 };
+            const mockCache = {}; // Client-side cache for mocks
 
-    <script>
-        // State
-        let table; // DataTable instance
-        let stats = { queries: 0, hits: 0 };
+            $(document).ready(function () {
+                fetchPangenomes();
 
-        $(document).ready(function () {
-            fetchPangenomes();
+                // Event Listeners
 
-            // Event Listeners
-            $('#pangenome-select').change(function () {
-                const pgId = $(this).val();
-                if (pgId) fetchTables(pgId);
-                else {
-                    $('#table-select').html('<option>Select Pangenome first</option>').prop('disabled', true);
-                }
+                $('#pangenome-select').change(function () {
+                    const pgId = $(this).val();
+                    const currentBerdlId = $('#berdl-id').val().trim();
+
+                    // Enforce consistency for Mocks
+                    if (pgId === 'mock_pg_1') {
+                        if (currentBerdlId.toLowerCase() !== 'mocka') $('#berdl-id').val('');
+                    } else if (pgId === 'mock_pg_2') {
+                        if (currentBerdlId.toLowerCase() !== 'mockb') $('#berdl-id').val('');
+                    } else {
+                        // If switching TO a real one FROM a mock input, clear the mock input
+                        if (currentBerdlId.toLowerCase() === 'mocka' || currentBerdlId.toLowerCase() === 'mockb') {
+                            $('#berdl-id').val('');
+                        }
+                    }
+
+                    if (pgId) fetchTables(pgId);
+                    else {
+                        $('#table-select').html('<option>Select Pangenome first</option>').prop('disabled', true);
+                    }
+                });
+
+                // Refresh pangenomes when ID changes
+                $('#berdl-id').change(fetchPangenomes);
+                $('#kb-token').change(function () {
+                    // Re-fetch if token changes
+                    fetchPangenomes();
+                });
+
+                $('#user-id').keypress(e => { if (e.which == 13) loadTable(); });
+                $('#btn-load').click(loadTable);
+                $('#btn-reset-filters').click(resetFilters);
+                $('#btn-clear-cache').click(clearCache);
             });
 
-            $('#user-id').keypress(e => { if (e.which == 13) loadTable(); });
-            $('#btn-load').click(loadTable);
-        });
+            function resetFilters() {
+                // Clear input fields
+                $('.filter-input').val('');
 
-        async function fetchPangenomes() {
-            try {
-                const res = await callService('list_pangenomes', { berdl_table_id: 'demo' });
-                const $sel = $('#pangenome-select').empty();
-                $sel.append('<option value="">-- Select Pangenome --</option>');
-
-                res.pangenomes.forEach(pg => {
-                    const label = `${pg.pangenome_taxonomy} (${pg.pangenome_id})`;
-                    $sel.append(`<option value="${pg.pangenome_id}">${label}</option>`);
-                });
-            } catch (err) {
-                console.error("List pangenomes failed", err);
-                $('#connection-status').text("● Service Offline").css('color', '#ef4444');
-                $('#pangenome-select').html('<option>Connection Failed</option>');
+                // Clear DataTable filters and reload
+                if ($.fn.DataTable.isDataTable('#data-table')) {
+                    const table = $('#data-table').DataTable();
+                    table.columns().search('').draw();
+                }
             }
-        }
 
-        async function fetchTables(pangenomeId) {
-            const $sel = $('#table-select').empty().prop('disabled', true);
-            $sel.append('<option>Loading tables...</option>');
+            async function clearCache() {
+                const pgId = $('#pangenome-select').val();
+                if (!pgId || pgId === "Select Pangenome first") {
+                    alert("Please select a pangenome first.");
+                    return;
+                }
 
-            try {
-                const res = await callService('list_tables', {
-                    berdl_table_id: 'demo',
-                    pangenome_id: pangenomeId
-                });
-                const tables = res.tables.sort();
+                // Handle Mock Cache
+                if (pgId.startsWith('mock_')) {
+                    if (mockCache[pgId]) {
+                        delete mockCache[pgId];
+                        alert(`Mock cache cleared for ${pgId}. Next load will simulate download.`);
+                    } else {
+                        alert("Mock cache is already empty.");
+                    }
+                    return;
+                }
 
-                $sel.empty().prop('disabled', false);
+                if (!confirm(`Are you sure you want to clear the local cache for ${pgId}? Next load will require download.`)) return;
+
+                const btn = $('#btn-clear-cache');
+                const originalText = btn.text();
+                btn.text("Clearing...").prop('disabled', true);
+
+                try {
+                    const res = await callService('clear_pangenome_cache', { pangenome_id: pgId });
+                    // Fix: callService returns the result object directly, not a list
+                    alert(res.message || "Cache cleared successfully");
+                } catch (e) {
+                    alert("Failed to clear cache: " + e);
+                } finally {
+                    btn.text(originalText).prop('disabled', false);
+                }
+            }
+
+            async function fetchPangenomes() {
+                const berdlId = $('#berdl-id').val().trim();
+                const $sel = $('#pangenome-select').empty();
+
+                // Mock Interception
+                if (berdlId.toLowerCase() === 'mocka') {
+                    $sel.append('<option value="mock_pg_1" selected>Mock Pangenome A (Client-Side)</option>');
+                    $sel.trigger('change');
+                    return;
+                }
+                if (berdlId.toLowerCase() === 'mockb') {
+                    $sel.append('<option value="mock_pg_2" selected>Mock Pangenome B (Client-Side)</option>');
+                    $sel.trigger('change');
+                    return;
+                }
+
+                try {
+                    // Only fetch real if it looks like a real ID
+                    if (!berdlId || berdlId.includes('/')) {
+                        const res = await callService('list_pangenomes', { berdl_table_id: berdlId });
+                        $sel.append('<option value="">-- Select Pangenome --</option>');
+
+                        res.pangenomes.forEach(pg => {
+                            const label = `${pg.pangenome_taxonomy} (${pg.pangenome_id})`;
+                            $sel.append(`<option value="${pg.pangenome_id}">${label}</option>`);
+                        });
+
+                        // Auto-select first real one if available
+                        if (res.pangenomes.length > 0) {
+                            const firstId = res.pangenomes[0].pangenome_id;
+                            $sel.val(firstId).trigger('change');
+                        }
+                    } else {
+                        // Fallback for weird inputs
+                        $sel.append('<option value="">Invalid ID format</option>');
+                    }
+
+                    // Add Mock Pangenomes for Demo (Always available at bottom)
+                    $sel.append('<option disabled>──────────</option>');
+                    $sel.append('<option value="mock_pg_1">Mock Pangenome A (Client-Side)</option>');
+                    $sel.append('<option value="mock_pg_2">Mock Pangenome B (Client-Side)</option>');
+
+                } catch (err) {
+                    console.error("List pangenomes failed", err);
+                    $('#connection-status').text("● Service Offline").css('color', '#ef4444');
+                    // Even if offline, show mocks
+                    $sel.empty().append('<option disabled>Connection Failed</option>');
+                    $sel.append('<option disabled>──────────</option>');
+                    $sel.append('<option value="mock_pg_1">Mock Pangenome A (Client-Side)</option>');
+                    $sel.append('<option value="mock_pg_2">Mock Pangenome B (Client-Side)</option>');
+                }
+            }
+
+            async function fetchTables(pangenomeId) {
+                const $sel = $('#table-select').empty();
+
+                // Static list of standard BERDL tables to enable "Lazy Loading"
+                // This prevents triggering a DB download just to list tables.
+                const tables = [
+                    'Conditions', 'DNA_constructs', 'Experiments', 'Genes',
+                    'Measurement_types', 'Measurements', 'Primers', 'Samples',
+                    'Strains', 'dgoA_alleles_new', 'dgoA_alleles_old', 'robotic_mt_samples'
+                ].sort();
+
                 $sel.append('<option value="">-- Select a Table --</option>');
-
                 tables.forEach(t => {
                     $sel.append(`<option value="${t}">${t}</option>`);
                 });
-            } catch (err) {
-                const msg = formatError(err);
-                if (msg.includes("Simulated Error")) {
-                    alert("⚠️ DEMO SIMULATION: The backend API for this mock pangenome is not connected in this demo environment.\n\nPlease select 'LIMS Default' to see real data.");
-                    $sel.html('<option>Not Available</option>');
-                } else {
-                    console.error("List tables failed", err);
-                    $sel.html('<option>Failed to load</option>');
-                    alert("Failed to load tables: " + msg);
+                $sel.prop('disabled', false);
+            }
+
+            async function loadTable() {
+                const tableName = $('#table-select').val();
+                const pangenomeId = $('#pangenome-select').val();
+                const userId = $('#user-id').val();
+
+                if (!pangenomeId) return alert("Select a pangenome first");
+                if (!tableName) return alert("Select a table first");
+
+                // Destroy existing table
+                if ($.fn.DataTable.isDataTable('#data-table')) {
+                    $('#data-table').DataTable().destroy();
+                    $('#data-table').empty(); // Clear DOM
+                }
+
+                // Fetch first page to get headers
+                try {
+                    // Check for Mock Pangenome
+                    if (pangenomeId.startsWith('mock_')) {
+                        console.log("Loading mock data...");
+                        await loadMockData(tableName);
+                        return;
+                    }
+
+                    const berdlId = $('#berdl-id').val();
+                    const initRes = await callService('get_table_data', {
+                        user_id: userId,
+                        berdl_table_id: berdlId,
+                        pangenome_id: pangenomeId,
+                        table_name: tableName,
+                        limit: 1,
+                        offset: 0
+                    });
+
+                    const headers = initRes.headers;
+
+                    // Build DOM structure for DataTable with filters in header
+                    let thead = '<tr>';
+                    let filterRow = '<tr class="filter-row">';
+
+                    headers.forEach(h => {
+                        thead += `<th>${h}</th>`;
+                        filterRow += `<th><input type="text" placeholder="Filter..." class="filter-input" data-col="${h}" onclick="event.stopPropagation()"></th>`;
+                    });
+                    thead += '</tr>';
+                    filterRow += '</tr>';
+
+                    $('#data-table').html(`<thead>${thead}${filterRow}</thead><tbody></tbody>`);
+
+                    // Initialize Server-side DataTable
+                    table = $('#data-table').DataTable({
+                        processing: true,
+                        serverSide: true,
+                        searching: false, // Disable global search
+                        displayLength: 25,
+                        ordering: true,
+                        orderCellsTop: true, // Important: Sort on top row, ignore filter row
+                        ajax: async function (data, callback, settings) {
+                            const pageSize = data.length;
+                            const offset = data.start;
+
+                            // Sorting
+                            let sortCol = null;
+                            let sortDir = null;
+                            if (data.order && data.order.length > 0) {
+                                sortCol = headers[data.order[0].column];
+                                sortDir = data.order[0].dir;
+                            }
+
+                            // Column Filtering
+                            const queryFilters = {};
+                            $('.filter-input').each(function () {
+                                const val = $(this).val();
+                                if (val) queryFilters[$(this).data('col')] = val;
+                            });
+
+                            const startTime = performance.now();
+
+                            try {
+                                const result = await callService('get_table_data', {
+                                    user_id: $('#user-id').val(),
+                                    berdl_table_id: $('#berdl-id').val(),
+                                    pangenome_id: pangenomeId, // Pass Selected Pangenome
+                                    table_name: tableName,
+                                    limit: pageSize,
+                                    offset: offset,
+                                    sort_column: sortCol,
+                                    sort_order: sortDir,
+                                    query_filters: queryFilters
+                                });
+
+                                const elapsed = performance.now() - startTime;
+                                updateStats(result, elapsed);
+
+                                // Map array data to objects
+                                const pageData = result.data.map(row => {
+                                    const obj = {};
+                                    headers.forEach((h, i) => obj[h] = row[i] || '');
+                                    return Object.values(obj);
+                                });
+
+                                callback({
+                                    draw: data.draw,
+                                    recordsTotal: result.total_count,
+                                    recordsFiltered: result.filtered_count,
+                                    data: pageData
+                                });
+
+                            } catch (e) {
+                                console.error("Data load error", e);
+                            }
+                        }
+                    });
+
+                    // Bind filter inputs with debounce
+                    let debounceTimer;
+                    $('.filter-input').on('keyup change', function () {
+                        clearTimeout(debounceTimer);
+                        debounceTimer = setTimeout(() => {
+                            table.ajax.reload();
+                        }, 300);
+                    });
+
+                } catch (err) {
+                    const msg = formatError(err);
+                    if (msg.includes("Simulated Error")) {
+                        alert("⚠️ DEMO SIMULATION: The backend API for this mock pangenome is not connected.");
+                    } else {
+                        alert("Failed to load table: " + msg);
+                    }
                 }
             }
-        }
 
-        async function loadTable() {
-            const tableName = $('#table-select').val();
-            const pangenomeId = $('#pangenome-select').val();
-            const userId = $('#user-id').val();
 
-            if (!pangenomeId) return alert("Select a pangenome first");
-            if (!tableName) return alert("Select a table first");
+            async function callService(method, params) {
+                // Using standard JSON-RPC format for KBase services
+                const payload = {
+                    version: "1.1",
+                    method: "BERDLTable_conversion_service." + method,
+                    params: [params],
+                    id: String(Date.now())
+                };
 
-            // Destroy existing table
-            if ($.fn.DataTable.isDataTable('#data-table')) {
-                $('#data-table').DataTable().destroy();
-                $('#data-table').empty(); // Clear DOM
-            }
+                const token = $('#kb-token').val();
+                const headers = {};
+                if (token) {
+                    headers['Authorization'] = token;
+                }
 
-            // Fetch first page to get headers
-            try {
-                const initRes = await callService('get_table_data', {
-                    user_id: userId,
-                    berdl_table_id: 'demo',
-                    pangenome_id: pangenomeId,
-                    table_name: tableName,
-                    limit: 1,
-                    offset: 0
+                const res = await $.ajax({
+                    url: "http://localhost:10001",
+                    method: "POST",
+                    contentType: "application/json",
+                    headers: headers,
+                    data: JSON.stringify(payload)
                 });
 
-                const headers = initRes.headers;
+                if (res.error) throw res.error;
+                return res.result[0];
+            }
 
-                // Build DOM structure for DataTable with filters in header
+            function updateStats(result, clientMs) {
+                stats.queries++;
+
+                $('#total-queries').text(stats.queries);
+                $('#rows-scanned').text(result.total_count ? result.total_count.toLocaleString() : '0');
+                $('#last-response').text(result.response_time_ms.toFixed(1) + 'ms');
+
+                const source = result.source || 'SQLite';
+                const badgeClass = 'status-sqlite';
+                const icon = '💾';
+
+                $('#last-source').html(`<span class="status-badge ${badgeClass}">${icon} ${source}</span>`);
+
+
+            }
+
+            function formatError(err) {
+                let msg = "Unknown Error";
+                if (typeof err === 'string') return err;
+
+                // jqXHR object
+                if (err.responseText) {
+                    try {
+                        const json = JSON.parse(err.responseText);
+                        if (json.error) return json.error.message || json.error;
+                    } catch (e) { }
+                    return err.responseText;
+                }
+
+                // Error object
+                if (err.message) return err.message;
+                if (err.statusText) return err.statusText;
+
+                try { return JSON.stringify(err); } catch (e) { return String(err); }
+            }
+
+            // Mock Data Generator
+            async function loadMockData(tableName) {
+                const headers = ["ID", "Name", "Type", "Source", "Date_Created", "Status"];
+                const mockData = [];
+
+                const pgId = $('#pangenome-select').val();
+                const btn = $('#btn-load');
+                const originalText = btn.text();
+
+                // Simluated logic
+                if (!mockCache[pgId]) {
+                    // Simulate Download
+                    btn.prop('disabled', true).text("Downloading Mock DB...");
+                    $('#last-source').text("Downloading...");
+
+                    // 2 second delay
+                    await new Promise(r => setTimeout(r, 2000));
+
+                    mockCache[pgId] = true;
+                    updateStats({ response_time_ms: 2000, source: 'KBase Workspace (Simulated)', total_count: 100 }, 2000);
+                } else {
+                    // Cache Hit
+                    updateStats({ response_time_ms: 8, source: 'Local Cache (Simulated)', total_count: 100 }, 8);
+                }
+
+                btn.prop('disabled', false).text(originalText);
+
+                for (let i = 0; i < 100; i++) {
+                    mockData.push([
+                        `MOCK-${i + 1}`,
+                        `${tableName}_Item_${i + 1}`,
+                        "Simulated",
+                        "Internal",
+                        new Date().toISOString().split('T')[0],
+                        i % 2 == 0 ? "Active" : "Archived"
+                    ]);
+                }
+
+                // Destroy existing table
+                if ($.fn.DataTable.isDataTable('#data-table')) {
+                    $('#data-table').DataTable().destroy();
+                    $('#data-table').empty();
+                }
+
                 let thead = '<tr>';
                 let filterRow = '<tr class="filter-row">';
-
                 headers.forEach(h => {
                     thead += `<th>${h}</th>`;
                     filterRow += `<th><input type="text" placeholder="Filter..." class="filter-input" data-col="${h}" onclick="event.stopPropagation()"></th>`;
                 });
                 thead += '</tr>';
                 filterRow += '</tr>';
-
                 $('#data-table').html(`<thead>${thead}${filterRow}</thead><tbody></tbody>`);
 
-                // Initialize Server-side DataTable
                 table = $('#data-table').DataTable({
-                    processing: true,
-                    serverSide: true,
-                    searching: false, // Disable global search
-                    displayLength: 25,
-                    ordering: true,
-                    orderCellsTop: true, // Important: Sort on top row, ignore filter row
-                    ajax: async function (data, callback, settings) {
-                        const pageSize = data.length;
-                        const offset = data.start;
+                    data: mockData,
+                    searching: true, // Enable client side search for mocks
+                    lengthMenu: [10, 25, 50],
+                    orderCellsTop: true
+                });
 
-                        // Sorting
-                        let sortCol = null;
-                        let sortDir = null;
-                        if (data.order && data.order.length > 0) {
-                            sortCol = headers[data.order[0].column];
-                            sortDir = data.order[0].dir;
-                        }
-
-                        // Column Filtering
-                        const queryFilters = {};
-                        $('.filter-input').each(function () {
-                            const val = $(this).val();
-                            if (val) queryFilters[$(this).data('col')] = val;
-                        });
-
-                        const startTime = performance.now();
-
-                        try {
-                            const result = await callService('get_table_data', {
-                                user_id: $('#user-id').val(),
-                                berdl_table_id: 'demo',
-                                pangenome_id: pangenomeId, // Pass Selected Pangenome
-                                table_name: tableName,
-                                limit: pageSize,
-                                offset: offset,
-                                sort_column: sortCol,
-                                sort_order: sortDir,
-                                query_filters: queryFilters
-                            });
-
-                            const elapsed = performance.now() - startTime;
-                            updateStats(result, elapsed);
-
-                            // Map array data to objects
-                            const pageData = result.data.map(row => {
-                                const obj = {};
-                                headers.forEach((h, i) => obj[h] = row[i] || '');
-                                return Object.values(obj);
-                            });
-
-                            callback({
-                                draw: data.draw,
-                                recordsTotal: result.total_count,
-                                recordsFiltered: result.filtered_count,
-                                data: pageData
-                            });
-
-                        } catch (e) {
-                            console.error("Data load error", e);
-                        }
+                // Bind client-side filters
+                $('.filter-input').on('keyup change', function () {
+                    const colIdx = headers.indexOf($(this).data('col'));
+                    if (colIdx > -1) {
+                        table.column(colIdx).search(this.value).draw();
                     }
                 });
-
-                // Bind filter inputs with debounce
-                let debounceTimer;
-                $('.filter-input').on('keyup change', function () {
-                    clearTimeout(debounceTimer);
-                    debounceTimer = setTimeout(() => {
-                        table.ajax.reload();
-                    }, 300);
-                });
-
-            } catch (err) {
-                const msg = formatError(err);
-                if (msg.includes("Simulated Error")) {
-                    alert("⚠️ DEMO SIMULATION: The backend API for this mock pangenome is not connected.");
-                } else {
-                    alert("Failed to load table: " + msg);
-                }
             }
-        }
-
-
-        async function callService(method, params) {
-            // Using standard JSON-RPC format for KBase services
-            const payload = {
-                version: "1.1",
-                method: "BERDLTable_conversion_service." + method,
-                params: [params],
-                id: String(Date.now())
-            };
-
-            const res = await $.ajax({
-                url: "http://localhost:5000",
-                method: "POST",
-                contentType: "application/json",
-                data: JSON.stringify(payload)
-            });
-
-            if (res.error) throw res.error;
-            return res.result[0];
-        }
-
-        function updateStats(result, clientMs) {
-            stats.queries++;
-
-            $('#total-queries').text(stats.queries);
-            $('#rows-scanned').text(result.total_count ? result.total_count.toLocaleString() : '0');
-            $('#last-response').text(result.response_time_ms.toFixed(1) + 'ms');
-
-            const source = result.source || 'SQLite';
-            const badgeClass = 'status-sqlite';
-            const icon = '💾';
-
-            $('#last-source').html(`<span class="status-badge ${badgeClass}">${icon} ${source}</span>`);
-
-            // Highlight flow boxes
-            $('.flow-box').removeClass('active');
-
-            // Flow: Pangenome -> SQLite -> Return
-            $('#flow-pangenome').addClass('active');
-            setTimeout(() => $('#flow-sqlite').addClass('active'), 300);
-        }
-
-        function formatError(err) {
-            let msg = "Unknown Error";
-            if (typeof err === 'string') return err;
-
-            // jqXHR object
-            if (err.responseText) {
-                try {
-                    const json = JSON.parse(err.responseText);
-                    if (json.error) return json.error.message || json.error;
-                } catch (e) { }
-                return err.responseText;
-            }
-
-            // Error object
-            if (err.message) return err.message;
-            if (err.statusText) return err.statusText;
-
-            try { return JSON.stringify(err); } catch (e) { return String(err); }
-        }
-    </script>
+        </script>
 </body>
 
 </html>

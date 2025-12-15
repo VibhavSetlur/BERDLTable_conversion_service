@@ -9,6 +9,7 @@ import json
 import time
 import os
 from pathlib import Path
+import configparser
 
 # Setup Python Path to import 'lib'
 lib_path = Path(__file__).resolve().parents[2] / "lib"
@@ -48,14 +49,34 @@ def main():
     if not os.path.exists(config['scratch']):
         os.makedirs(config['scratch'])
         
+    # Load Config from test_local/test.cfg
+    cfg_path = Path(__file__).resolve().parents[2] / "test_local" / "test.cfg"
+    test_config = configparser.ConfigParser()
+    try:
+        with open(cfg_path, 'r') as f:
+            # Add dummy section for ConfigParser
+            content = "[global]\n" + f.read()
+        test_config.read_string(content)
+        token = test_config['global']['test_token']
+        print(f"Loaded token: {token[:5]}...")
+    except Exception as e:
+        print(f"{Colors.WARNING}Could not load token from {cfg_path}: {e}{Colors.ENDC}")
+        token = None
+
     service = BERDLTable_conversion_service(config)
-    ctx = {"user_id": "cly_user"}
+    ctx = {"user_id": "cly_user", "token": token}
     
     # 2. List Pangenomes
     print_step(1, "Discovering Pangenomes")
-    print("calling service.list_pangenomes()...")
     
-    pg_result = service.list_pangenomes(ctx, {})[0]
+    # User Input for Object ID
+    default_obj = "76990/ADP1Test"
+    obj_ref = input(f"Enter BERDLTables Object Ref [default '{default_obj}']: ").strip()
+    if not obj_ref: obj_ref = default_obj
+    
+    print(f"calling service.list_pangenomes(berdl_table_id='{obj_ref}')...")
+    
+    pg_result = service.list_pangenomes(ctx, {'berdl_table_id': obj_ref})[0]
     pangenomes = pg_result['pangenomes']
     
     print(f"\nFound {len(pangenomes)} pangenomes:")
@@ -79,10 +100,10 @@ def main():
     
     # 4. List Tables
     print_step(3, "List Tables")
-    print(f"calling service.list_tables(pangenome_id='{selected_pg}')...")
+    print(f"calling service.list_tables(pangenome_id='{selected_pg}', berdl_table_id='{obj_ref}')...")
     
     try:
-        t_result = service.list_tables(ctx, {'pangenome_id': selected_pg})[0]
+        t_result = service.list_tables(ctx, {'pangenome_id': selected_pg, 'berdl_table_id': obj_ref})[0]
         tables = t_result['tables']
         print(f"\nAvailable Tables ({len(tables)}):")
         # Print in columns
@@ -117,12 +138,12 @@ def main():
     params = {
         "pangenome_id": selected_pg,
         "table_name": table_name,
+        "berdl_table_id": obj_ref,
         "limit": limit,
-        "offset": offset
+        "offset": offset,
+        "query_filters": filters
     }
-    if filters:
-        params["query_filters"] = filters
-
+    
     # 6. Show Code
     print_step(5, "Generated Python Code")
     code = f"""# Connect to service
